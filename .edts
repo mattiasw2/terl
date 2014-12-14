@@ -1,0 +1,5 @@
+:name "terl_edts"
+:node-sname "terl_edts"
+:lib-dirs '("lib" "test")
+:app-include-dirs '("include")
+:project-include-dirs '("include")

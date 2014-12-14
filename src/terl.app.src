@@ -1,0 +1,12 @@
+{application, terl,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { terl_app, []}},
+  {env, []}
+ ]}.

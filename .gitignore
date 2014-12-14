@@ -1,5 +1,7 @@
+/TAGS
 /src/*.beam
 /.rebar/
 *~
 /deps/*
+/ebin/*
 /src/log/*

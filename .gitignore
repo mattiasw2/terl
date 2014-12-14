@@ -1,3 +1,4 @@
+/src/*.beam
 /.rebar/
 *~
 /deps/*

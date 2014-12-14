@@ -1,0 +1,4 @@
+/.rebar/
+*~
+/deps/*
+/src/log/*

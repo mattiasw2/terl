@@ -1,0 +1,11 @@
+io:format("loading local .erlang\n",[]).
+code:add_patha("../deps/eqc/ebin").
+code:add_patha("../deps/lager/ebin").
+code:add_path("../ebin").
+code:add_path("../deps/goldrush/ebin").
+code:add_path("../deps/recon/ebin").
+code:add_path("../deps/sync/ebin").
+code:add_path("../deps/erlware_commons/ebin").
+sync:go().
+lager:start().
+io:format("loaded local .erlang\n",[]).

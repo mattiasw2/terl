@@ -13,25 +13,25 @@ all:
 	rebar compile
 
 run:
-	werl.exe -pa ./ebin -pa ./deps/*/ebin -config cleaner.config
+	werl.exe -pa ./ebin -pa ./deps/*/ebin -config terl.config
 
 relx:	all
 	~/erl-src/relx/relx
 
 install:
-	_rel/cleaner/bin/cleaner install
+	_rel/terl/bin/terl install
 
 start:
-	_rel/cleaner/bin/cleaner start
+	_rel/terl/bin/terl start
 
 uninstall:
-	_rel/cleaner/bin/cleaner uninstall
+	_rel/terl/bin/terl uninstall
 
 stop:
-	_rel/cleaner/bin/cleaner stop
+	_rel/terl/bin/terl stop
 
 console:
-	_rel/cleaner/bin/cleaner console
+	_rel/terl/bin/terl console
 
 
 wc:
@@ -39,12 +39,16 @@ wc:
 
 
 dialyzer:
-	cd ~/data3/erlang/shc/; rebar clean compile
-	cd ~/data3/erlang/shc/;  dialyzer $(_NO_NATIVE) --fullpath --verbose -Wunderspecs -Wunmatched_returns -Werror_handling ebin/*.beam
+	cd ~/data3/repos/terl/; rebar clean compile
+	cd ~/data3/repos/terl/;  dialyzer $(_NO_NATIVE) --fullpath --verbose -Wunderspecs -Wunmatched_returns -Werror_handling ebin/*.beam
+
+dialyzer_sample:
+	cd ~/data3/repos/terl/samples/; erlc +debug_info *.erl
+	cd ~/data3/repos/terl/samples/; dialyzer $(_NO_NATIVE) --fullpath --verbose -Wunderspecs -Wunmatched_returns -Werror_handling *.beam
 
 dialyzer_over:
-	cd ~/data3/erlang/shc/; rebar clean compile
-	cd ~/data3/erlang/shc/;  dialyzer $(_NO_NATIVE) --fullpath --verbose -Wunderspecs -Wunmatched_returns -Werror_handling -Woverspecs ebin/*.beam
+	cd ~/data3/repos/terl/; rebar clean compile
+	cd ~/data3/repos/terl/;  dialyzer $(_NO_NATIVE) --fullpath --verbose -Wunderspecs -Wunmatched_returns -Werror_handling -Woverspecs ebin/*.beam
 
 build_dialyzer:
 	dialyzer $(_NO_NATIVE) --build_plt --apps erts kernel stdlib mnesia eunit
@@ -58,5 +62,5 @@ erl:
 
 
 typer:
-	cd ~/data3/erlang/shc/; rebar compile
-	cd ~/data3/erlang/shc/; typer ebin/*.beam
+	cd ~/data3/repos/terl/; rebar compile
+	cd ~/data3/repos/terl/; typer ebin/*.beam

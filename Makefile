@@ -1,3 +1,5 @@
+# maybe get a real makefile: https://github.com/ninenines/erlang.mk
+
 _ARCH := $(shell arch)
 
 ifeq ($(_ARCH),armv7l)

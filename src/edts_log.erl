@@ -97,5 +97,5 @@ set_log_level(Level) -> lager:set_loglevel(lager_console_backend, Level).
 %%%_* Emacs ====================================================================
 %%% Local Variables:
 %%% allout-layout: t
-%%% erlang-indent-level: 2
+%%% erlang-indent-level: 4
 %%% End:

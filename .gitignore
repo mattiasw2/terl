@@ -1,4 +1,6 @@
+/samples/*.beam
 /TAGS
+/src/*.core
 /src/*.beam
 /.rebar/
 *~

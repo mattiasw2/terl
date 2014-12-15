@@ -1,3 +1,4 @@
+/samples/*.core
 /samples/*.beam
 /TAGS
 /src/*.core

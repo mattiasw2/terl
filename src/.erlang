@@ -8,4 +8,5 @@ code:add_path("../deps/sync/ebin").
 code:add_path("../deps/erlware_commons/ebin").
 sync:go().
 lager:start().
+rr("../include/core_parse.hrl").
 io:format("loaded local .erlang\n",[]).

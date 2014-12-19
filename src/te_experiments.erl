@@ -67,9 +67,94 @@ get_spec_or_type({#c_literal{anno = _Anno,val = export_type}, #c_literal{anno = 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% convert record to ocaml
 to_ocaml({type, {{record, _Name},_RecordType,_Fields} = Record}) -> Record;
-to_ocaml({export_type, Types} = Record) -> Record;
+to_ocaml({export_type, _Types} = Record) -> Record;
 to_ocaml({type, {_,_,_} = NamedType}) -> NamedType;
-to_ocaml({spec, {{F,N}, [Type]}}) -> {spec, F, N, Type}.
+to_ocaml({spec, {{F,N}, [Type]}}) ->
+    %% {spec, F, N, Type},
+    %% I do not need N, except for double-checking
+    {spec, F, N, generate_type(Type)}.
+
+
+generate_type(Type) ->
+    generate_type(Type, []).
+
+generate_type({type, _Row, 'fun', [From, To]}, Constraints) ->
+    FromType = generate_type(From, Constraints),
+    ToType = generate_type(To, Constraints),
+    {'->', FromType, ToType};
+generate_type({type, _Row, product, Types}, Constraints) ->
+    {product, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
+generate_type({type, _Row, tuple, Types}, Constraints) ->
+    {tuple, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
+generate_type({type, _Row, record, [Type]}, Constraints) ->
+    {record_type, generate_type(Type, Constraints)};
+generate_type({type, _Row, list, [Type]}, Constraints) ->
+    {list, generate_type(Type, Constraints)};
+generate_type({type, _Row, nonempty_list, [Type]}, Constraints) ->
+    {nonempty_list, generate_type(Type, Constraints)};
+generate_type({integer, _Row, _ConstantValue}, _Constraints) ->
+    %% Ignoring the actual value of the integer
+    %% add more primitive constants here
+    integer;
+generate_type({type, _Row, Primitive, []}, _Constraints) ->
+    %% todo: check that primitive is string, integer ....
+    Primitive;
+generate_type({var, _Row, Atom}, Constraints) ->
+    expand_subtype(Atom, Constraints);
+generate_type({atom, _Row, Atom}, _Constraints) ->
+    {atom, Atom};
+generate_type({type,_Row1,bounded_fun,[{type,_Row2,'fun',[From, To]}, Constraints]}, TopConstraints) ->
+    %% I do not plan for more than one bounded_fun expression for now
+    [] = TopConstraints,
+    FromType = generate_type(From, Constraints),
+    ToType = generate_type(To, Constraints),
+    {'->',FromType, ToType}.
+
+expand_subtype(Var, Constraints) ->
+    expand_subtype(Var, Constraints, Constraints).
+
+expand_subtype('_', [], _Constraints) ->
+    %% todo: recognize other term(), since then we cannot do type-checking
+    any;
+expand_subtype(Var, [], _Constraints) ->
+    {polymorphic, Var};
+expand_subtype(Var, [C|Cs], AllConstraints) ->
+    case expand_subtype2(Var, C, AllConstraints) of
+        error -> expand_subtype(Var, Cs, AllConstraints);
+        {ok, Result} -> Result
+    end.
+
+expand_subtype2(Var, {type, _Row, constraint, SubTypes}, AllConstraints) ->
+    expand_var(Var, SubTypes, AllConstraints).
+
+expand_var(Var, [{atom,_Row,is_subtype}, [{var,_Row2,Var}, Type]], AllConstraints) ->
+    {ok, generate_type(Type, AllConstraints)};
+%% expand_var(_, [], _) ->
+%%     error;
+expand_var(_, _, _) ->
+    error.
+
+
+
+
+
+%%                                                       {type,16,string,[]}]]
+
+
+
+expand_constraints([{type,11,constraint,
+                                                     [{atom,11,is_subtype},
+                                                      [{var,11,'Fun'},
+                                                       {type,11,'fun',
+                                                        [{type,11,product,
+                                                          [{var,11,'A'}]},
+                                                         {var,11,'B'}]}]]}]) ->
+    ok.
+
+
+
+
+
 
 
 
@@ -89,4 +174,9 @@ d_test() ->
     te_experiments:t1("../samples/poly1.erl").
 
 e_test() ->
+    %% generate_type({remote_type,72,[{atom,72,erl_types},{atom,72,erl_type},[]]},[])
     te_experiments:t1("/home/mattias/erl-src/otp/lib/dialyzer/src/dialyzer_contracts.erl").
+
+e_read() ->
+    {ok, Module} = dialyzer_utils:get_core_from_src("/home/mattias/erl-src/otp/lib/dialyzer/src/dialyzer_contracts.erl"),
+    Module.

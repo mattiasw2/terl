@@ -3,7 +3,8 @@ code:add_patha("../deps/eqc/ebin").
 code:add_patha("../deps/lager/ebin").
 code:add_path("../ebin").
 code:add_path("../deps/goldrush/ebin").
-code:add_path("../deps/recon/ebin").
+code:add_path("../deps/eper/ebin").
+%code:add_path("../deps/recon/ebin").
 code:add_path("../deps/sync/ebin").
 code:add_path("../deps/erlware_commons/ebin").
 sync:go().

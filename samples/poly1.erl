@@ -7,17 +7,29 @@
 list1(L) ->
     lists:map(fun(E) -> E end, L).
 
+-spec applyer(Fun, A) -> B when
+      Fun :: fun((A) -> B).
+applyer(F,A1) ->
+    F(A1).
+
+%% -spec map(Fun, List1) -> List2 when
+%%       Fun :: fun((A) -> B),
+%%       List1 :: [A],
+%%       List2 :: [B],
+%%       A :: term(),
+%%       B :: term().
+
+%% using the original spec, I loose the relationship between A B and the Fun
 -spec map(Fun, List1) -> List2 when
       Fun :: fun((A) -> B),
       List1 :: [A],
-      List2 :: [B],
-      A :: term(),
-      B :: term().
+      List2 :: [B].
 
 map(F, [H|T]) ->
     [F(H)|map(F, T)];
 map(F, []) when is_function(F, 1) -> [].
 
+-spec type1() -> [{{'map',2},[{_,_,_,_},...]},...].
 type1() ->
     [{{map,2},
       [{type,8,bounded_fun,

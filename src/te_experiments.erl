@@ -87,7 +87,7 @@ generate_type({type, _Row, 'fun', [From, To]}, Constraints) ->
     ToType = generate_type(To, Constraints),
     {'->', FromType, ToType};
 generate_type({type, _Row, product, Types}, Constraints) ->
-    {product, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
+    {'*', lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
 generate_type({type, _Row, tuple, Types}, Constraints) ->
     maybe_named_tuple({tuple, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)});
 generate_type({type, _Row, record, [Type]}, Constraints) ->

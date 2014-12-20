@@ -62,8 +62,6 @@ get_spec_or_type({#c_literal{anno = _Anno,val = export_type}, #c_literal{anno = 
     %% -export_type([file_contract/0, plt_contracts/0]).
     {export_type, Types}.
 
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% convert record to ocaml
 %%% playing with M-x align-regexp with ',' and '=' and ') ->'
@@ -72,15 +70,13 @@ to_ocaml({type        , {_,_,_} = NamedType}          ) -> NamedType;
 to_ocaml({export_type , _Types}= Record               ) -> Record;
 to_ocaml({spec        , {{F,N}, [Type]}}              ) -> {spec, F, N, generate_type(Type)}.
 
+
 generate_field({typed_record_field,{record_field,_Row,{atom,_Row2, _FieldName},_Default},Type}) ->
     %% Default is {string,2,"name_default"}
     %% Do I need to bother about name? Maybe, when I refer to it?
     generate_type(Type);
-generate_field({typed_record_field,{record_field,_Row,{atom,_Row2, _FieldName}},Type}) ->
-    %% No default value
-    %% Do I need to bother about name? Maybe, when I refer to it?
+generate_field({typed_record_field,{record_field,_Row,{atom,_Row2, _FieldName}         },Type}) ->
     generate_type(Type).
-
 
 
 generate_type(Type) ->
@@ -153,29 +149,6 @@ expand_var(Var, [{atom,_Row,is_subtype}, [{var,_Row2,Var}, Type]], AllConstraint
 %%     error;
 expand_var(_, _, _) ->
     error.
-
-
-
-
-
-%%                                                       {type,16,string,[]}]]
-
-
-
-expand_constraints([{type,11,constraint,
-                                                     [{atom,11,is_subtype},
-                                                      [{var,11,'Fun'},
-                                                       {type,11,'fun',
-                                                        [{type,11,product,
-                                                          [{var,11,'A'}]},
-                                                         {var,11,'B'}]}]]}]) ->
-    ok.
-
-
-
-
-
-
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

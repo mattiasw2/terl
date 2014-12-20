@@ -22,5 +22,14 @@ build2b(Name, Age) ->
 access1(Contact) ->
     Contact#contact.name.
 
+-spec get1('age' | 'name', #contact{}) -> {'age', integer()} | {'name', string()}.
+get1(age,  #contact{age  = Age }) -> {age,  Age};
+get1(name, #contact{name = Name}) -> {name, Name}.
+
+%%% ( becomes parent_type
+-spec get2(('age' | 'name'), #contact{}) -> {'age', integer()} | {'name', string()}.
+get2(age,  #contact{age  = Age }) -> {age,  Age};
+get2(name, #contact{name = Name}) -> {name, Name}.
+
 %% to_core() ->
 %%     compile:file("../samples/access1.erl",[to_core]).

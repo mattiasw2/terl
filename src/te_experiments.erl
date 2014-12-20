@@ -54,11 +54,11 @@ get_spec_and_types(Attrs) ->
     L2.
 
 %%% why is Type a list of 1 element? Can you group several -spec into one -spec?
-get_spec_or_type({#c_literal{anno = _Anno,val = spec}, #c_literal{anno = _Anno2,val = [Type]}}) ->
+get_spec_or_type({ #c_literal{anno = _Anno,val = spec}        , #c_literal{anno = _Anno2,val = [Type]}}) ->
     {spec, Type};
-get_spec_or_type({#c_literal{anno = _Anno,val = type}, #c_literal{anno = _Anno2,val = [Type]}}) ->
+get_spec_or_type({ #c_literal{anno = _Anno,val = type}        , #c_literal{anno = _Anno2,val = [Type]}}) ->
     {type, Type};
-get_spec_or_type({#c_literal{anno = _Anno,val = export_type}, #c_literal{anno = _Anno2,val = Types}}) ->
+get_spec_or_type({ #c_literal{anno = _Anno,val = export_type} , #c_literal{anno = _Anno2,val = Types }}) ->
     %% -export_type([file_contract/0, plt_contracts/0]).
     {export_type, Types}.
 
@@ -66,7 +66,7 @@ get_spec_or_type({#c_literal{anno = _Anno,val = export_type}, #c_literal{anno = 
 %%% convert record to ocaml
 %%% playing with M-x align-regexp with ',' and '=' and ') ->'
 to_ocaml({type        , {{record, Name}, Fields, []}} ) -> {named_tuple, {atom, Name}, lists:map(fun generate_field/1, Fields)};
-to_ocaml({type        , {_,_,_} = NamedType}          ) -> NamedType;
+to_ocaml({type        , {Name,Type,[]}     }          ) -> {type, Name, generate_type(Type)};
 to_ocaml({export_type , _Types}= Record               ) -> Record;
 to_ocaml({spec        , {{F,N}, [Type]}}              ) -> {spec, F, N, generate_type(Type)}.
 
@@ -96,30 +96,51 @@ generate_type({type, _Row, list, [Type]}, Constraints) ->
     {list, generate_type(Type, Constraints)};
 generate_type({type, _Row, nonempty_list, [Type]}, Constraints) ->
     {nonempty_list, generate_type(Type, Constraints)};
-generate_type({integer, _Row, _ConstantValue}, _Constraints) ->
-    %% Ignoring the actual value of the integer
-    %% add more primitive constants here
-    integer;
 generate_type({type, _Row, Primitive, []}, _Constraints) ->
     %% todo: check that primitive is string, integer ....
     Primitive;
-generate_type({var, _Row, Atom}, Constraints) ->
-    expand_subtype(Atom, Constraints);
-generate_type({atom, _Row, Atom}, _Constraints) ->
-    {atom, Atom};
 generate_type({type,_Row1,bounded_fun,[{type,_Row2,'fun',[From, To]}, Constraints]}, TopConstraints) ->
     %% I do not plan for more than one bounded_fun expression for now
     [] = TopConstraints,
     FromType = generate_type(From, Constraints),
     ToType = generate_type(To, Constraints),
     {'->',FromType, ToType};
+generate_type({type,_Row,union,Types}, Constraints) ->
+    {'|', lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
+generate_type({type,_Row,map,Map_field_assoc}, Constraints) ->
+    Types = lists:map(fun(T) -> generate_type(T, Constraints) end, Map_field_assoc),
+    case is_record_like_map(Types) of
+        true  -> {map_record_like, Types};
+        false ->
+            case length(Types) =:= 1 of
+                true  -> {map_typed, Types};
+                false -> {map_unsupported, Map_field_assoc}
+            end
+    end;
+generate_type({type,_Row,map_field_assoc,From,To}, Constraints) ->
+    {map_field_assoc, generate_type(From, Constraints), generate_type(To, Constraints)};
+generate_type({integer, _Row, _ConstantValue}, _Constraints) ->
+    %% Ignoring the actual value of the integer
+    %% add more primitive constants here
+    integer;
+generate_type({var, _Row, Atom}, Constraints) ->
+    expand_subtype(Atom, Constraints);
+generate_type({atom, _Row, Atom}, _Constraints) ->
+    {atom, Atom};
 generate_type({remote_type, _Row, _} = Remote_type, _Constraints) ->
     %% _ [{atom,72,erl_types},{atom,72,erl_type},[]]
     {'%%%', Remote_type};
-generate_type({type,_Row,union,Types}, Constraints) ->
-    {union, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
 generate_type({paren_type,_Row,[Type]}, Constraints) ->
     generate_type(Type, Constraints).
+
+is_record_like_map([]) -> false;
+is_record_like_map(L) ->
+    %% all of the key types must be atoms
+    lists:all(fun(E) -> case E of
+                            {map_field_assoc,{atom,_},_} -> true;
+                            _ -> false
+                        end
+              end, L).
 
 
 maybe_named_tuple({tuple,[{atom,Name}|Rest]}) -> {named_tuple, {atom, Name}, Rest};

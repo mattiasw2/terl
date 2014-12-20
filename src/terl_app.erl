@@ -1,3 +1,5 @@
+%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
+
 -module(terl_app).
 
 -behaviour(application).

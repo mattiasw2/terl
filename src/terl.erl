@@ -1,3 +1,5 @@
+%% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
+
 -module(terl).
 
 -export([start/0,stop/0]).

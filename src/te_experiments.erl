@@ -66,13 +66,21 @@ get_spec_or_type({#c_literal{anno = _Anno,val = export_type}, #c_literal{anno = 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% convert record to ocaml
-to_ocaml({type, {{record, _Name},_RecordType,_Fields} = Record}) -> Record;
-to_ocaml({export_type, _Types} = Record) -> Record;
-to_ocaml({type, {_,_,_} = NamedType}) -> NamedType;
-to_ocaml({spec, {{F,N}, [Type]}}) ->
-    %% {spec, F, N, Type},
-    %% I do not need N, except for double-checking
-    {spec, F, N, generate_type(Type)}.
+%%% playing with M-x align-regexp with ',' and '=' and ') ->'
+to_ocaml({type        , {{record, Name}, Fields, []}} ) -> {named_tuple, {atom, Name}, lists:map(fun generate_field/1, Fields)};
+to_ocaml({type        , {_,_,_} = NamedType}          ) -> NamedType;
+to_ocaml({export_type , _Types}= Record               ) -> Record;
+to_ocaml({spec        , {{F,N}, [Type]}}              ) -> {spec, F, N, generate_type(Type)}.
+
+generate_field({typed_record_field,{record_field,_Row,{atom,_Row2, _FieldName},_Default},Type}) ->
+    %% Default is {string,2,"name_default"}
+    %% Do I need to bother about name? Maybe, when I refer to it?
+    generate_type(Type);
+generate_field({typed_record_field,{record_field,_Row,{atom,_Row2, _FieldName}},Type}) ->
+    %% No default value
+    %% Do I need to bother about name? Maybe, when I refer to it?
+    generate_type(Type).
+
 
 
 generate_type(Type) ->
@@ -85,7 +93,7 @@ generate_type({type, _Row, 'fun', [From, To]}, Constraints) ->
 generate_type({type, _Row, product, Types}, Constraints) ->
     {product, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
 generate_type({type, _Row, tuple, Types}, Constraints) ->
-    {tuple, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
+    maybe_named_tuple({tuple, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)});
 generate_type({type, _Row, record, [Type]}, Constraints) ->
     {record_type, generate_type(Type, Constraints)};
 generate_type({type, _Row, list, [Type]}, Constraints) ->
@@ -108,7 +116,19 @@ generate_type({type,_Row1,bounded_fun,[{type,_Row2,'fun',[From, To]}, Constraint
     [] = TopConstraints,
     FromType = generate_type(From, Constraints),
     ToType = generate_type(To, Constraints),
-    {'->',FromType, ToType}.
+    {'->',FromType, ToType};
+generate_type({remote_type, _Row, _} = Remote_type, _Constraints) ->
+    %% _ [{atom,72,erl_types},{atom,72,erl_type},[]]
+    {'%%%', Remote_type};
+generate_type({type,_Row,union,Types}, Constraints) ->
+    {union, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
+generate_type({paren_type,_Row,[Type]}, Constraints) ->
+    generate_type(Type, Constraints).
+
+
+maybe_named_tuple({tuple,[{atom,Name}|Rest]}) -> {named_tuple, {atom, Name}, Rest};
+maybe_named_tuple(Tuple                     ) -> Tuple.
+
 
 expand_subtype(Var, Constraints) ->
     expand_subtype(Var, Constraints, Constraints).

@@ -50,7 +50,67 @@ t1(File) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% get the ocaml abstract code
 get_functions(Defs, TAS) ->
-    Defs.
+    lists:map(fun(Def) -> get_function(Def, TAS) end, Defs).
+
+get_function({#c_var{name = {F, N}}, #c_fun{vars = Vars, body = Body}}, TAS) ->
+    Fun = {'/', F, N},
+    Args = lists:map(fun(Arg) -> get_arg(Arg, TAS) end, Vars),
+    Def = compile_body(Body, TAS),
+    {'letrec', Fun, Args, Def}.
+
+%%% get the header of the function
+%%% todo: should I add the type info for args and return?
+get_arg(#c_var{name = Name}, _TAS) -> Name.
+
+compile_bodies(Bodies, TAS) ->
+    lists:map(fun(Body) -> compile_body(Body, TAS) end, Bodies).
+
+%%% compile the body into ocaml abstract code
+compile_body(#c_case{arg = Arg, clauses = Clauses}, TAS) ->
+    {'match', get_case_values(Arg, TAS), compile_clauses(Clauses, TAS)};
+compile_body(#c_let{vars = Vars, arg = Arg, body = Body}, TAS) ->
+    {'let', {'=', Vars, Arg}, compile_body(Body, TAS)};
+compile_body(#c_tuple{es = Es}, TAS) ->
+    {'mktuple', compile_bodies(Es, TAS)};
+compile_body(#c_literal{val = Literal}, _TAS) ->
+    %% todo: when are we going to fix conversion to ocaml casing?
+    {literal, Literal};
+compile_body(#c_var{name = Name}, _TAS) ->
+    %% todo: when are we going to fix conversion to ocaml casing?
+    {variable, Name};
+compile_body(#c_call{module = Module, name = Name, args = Args}, TAS) ->
+    {'call', Module#c_literal.val, Name#c_literal.val, length(Args), compile_bodies(Args, TAS)}.
+
+
+
+%%% two levels to detect if this is arbitralily recursive.
+get_case_values(#c_values{es = Es},     TAS ) -> lists:map(fun(E) -> get_case_values2(E, TAS) end, Es);
+get_case_values(V,                      TAS ) -> get_case_values2(V, TAS).
+
+get_case_values2(#c_var{name = Name},  _TAS ) -> {variable, Name}.
+
+
+%%% compile the clauses, skip the match_fail, since we want the ocaml compiler to complain
+%%% if pattern not complete.
+compile_clauses([], _TAS) -> [];
+compile_clauses([#c_clause{anno = [compiler_generated]}|Cs], TAS) -> compile_clauses(Cs, TAS);
+compile_clauses([#c_clause{pats = Pats, guard = Guard, body = Body}|Cs], TAS) ->
+    [{'match|', compile_pattern(Pats, TAS), compile_when(Guard, TAS), compile_body(Body, TAS)}
+     |compile_clauses(Cs, TAS)].
+
+
+compile_pattern(Pats, _TAS) ->
+    lists:map(fun(Pat) -> {pattern, Pat} end, Pats).
+
+compile_when(#c_literal{val = true}, _TAS) ->
+    true;
+compile_when(#c_literal{val = Guard}, TAS) ->
+    compile_body(Guard, TAS).
+
+
+
+
+
 
 
 

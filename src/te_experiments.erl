@@ -79,7 +79,7 @@ compile_body(#c_var{name = Name}, _TAS) ->
     %% todo: when are we going to fix conversion to ocaml casing?
     {variable, Name};
 compile_body(#c_call{module = Module, name = Name, args = Args}, TAS) ->
-    {'call', Module#c_literal.val, Name#c_literal.val, length(Args), compile_bodies(Args, TAS)}.
+    {'call', {'/', Module#c_literal.val, Name#c_literal.val, length(Args)}, compile_bodies(Args, TAS)}.
 
 
 
@@ -95,23 +95,20 @@ get_case_values2(#c_var{name = Name},  _TAS ) -> {variable, Name}.
 compile_clauses([], _TAS) -> [];
 compile_clauses([#c_clause{anno = [compiler_generated]}|Cs], TAS) -> compile_clauses(Cs, TAS);
 compile_clauses([#c_clause{pats = Pats, guard = Guard, body = Body}|Cs], TAS) ->
-    [{'match|', compile_pattern(Pats, TAS), compile_when(Guard, TAS), compile_body(Body, TAS)}
+    [{'match|', compile_patterns(Pats, TAS), compile_when(Guard, TAS), compile_body(Body, TAS)}
      |compile_clauses(Cs, TAS)].
 
 
-compile_pattern(Pats, _TAS) ->
-    lists:map(fun(Pat) -> {pattern, Pat} end, Pats).
+compile_patterns(Pats, TAS) ->
+    lists:map(fun(Pat) -> compile_pattern(Pat, TAS) end, Pats).
 
-compile_when(#c_literal{val = true}, _TAS) ->
-    true;
-compile_when(#c_literal{val = Guard}, TAS) ->
-    compile_body(Guard, TAS).
-
+compile_pattern(#c_tuple   {es = ES},      TAS) -> {pattern_tuple, compile_patterns(ES, TAS)};
+compile_pattern(#c_literal {val = Val},   _TAS) -> {pattern_literal, Val};
+compile_pattern(#c_var     {name = Name}, _TAS) -> {pattern_var, Name}.
 
 
-
-
-
+compile_when(#c_literal{val = true}, _TAS) -> true;
+compile_when(#c_literal{val = Guard}, TAS) -> compile_body(Guard, TAS).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -133,7 +130,8 @@ get_spec_or_type({ #c_literal{anno = _Anno,val = export_type} , #c_literal{anno 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% convert record to ocaml
 %%% playing with M-x align-regexp with ',' and '=' and ') ->'
-to_ocaml({type        , {{record, Name}, Fields, []}} ) -> {named_tuple, {atom, Name}, lists:map(fun generate_field/1, Fields)};
+to_ocaml({type        , {{record, Name}, Fields, []}} ) -> {named_tuple, {atom, Name},
+                                                            lists:map(fun generate_field/1, Fields)};
 to_ocaml({type        , {Name,Type,[]}     }          ) -> {type, Name, generate_type(Type)};
 to_ocaml({export_type , _Types}= Record               ) -> Record;
 to_ocaml({spec        , {{F,N}, [Type]}}              ) -> {spec, F, N, generate_type(Type)}.

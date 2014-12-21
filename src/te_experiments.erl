@@ -43,8 +43,16 @@ t1(File) ->
     _Name = Module#c_module.name,
     _Exports = Module#c_module.exports,
     Attrs = Module#c_module.attrs,
-    _Defs = Module#c_module.defs,
-    get_spec_and_types(Attrs).
+    Defs = Module#c_module.defs,
+    TypeAndSpecs = get_spec_and_types(Attrs),
+    get_functions(Defs, TypeAndSpecs).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% get the ocaml abstract code
+get_functions(Defs, TAS) ->
+    Defs.
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% get specs and types without the c_literal stuff

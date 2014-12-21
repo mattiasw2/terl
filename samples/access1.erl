@@ -4,6 +4,9 @@
 
 -include("rec1.hrl").
 
+build1tuple(Name) ->
+    {'contact2',Name,-1}.
+
 -spec build1(string()) -> #contact{}.
 build1(Name) ->
     #contact{name=Name}.

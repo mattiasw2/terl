@@ -4,6 +4,8 @@
 
 -compile(export_all).
 
+nil() -> [].
+
 list1(L) ->
     lists:map(fun(E) -> E end, L).
 

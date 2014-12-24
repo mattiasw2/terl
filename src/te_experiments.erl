@@ -67,11 +67,19 @@ compile_bodies(Bodies, TAS) ->
 
 %%% compile the body into ocaml abstract code
 compile_body(#c_case{arg = Arg, clauses = Clauses}, TAS) ->
-    {'match', get_case_values(Arg, TAS), compile_clauses(Clauses, TAS)};
+    Res = {'match', get_case_values(Arg, TAS), compile_clauses(Clauses, TAS)},
+    optimize_match(Res);
 compile_body(#c_let{vars = Vars, arg = Arg, body = Body}, TAS) ->
     {'let', {'=', Vars, Arg}, compile_body(Body, TAS)};
+compile_body(#c_letrec{defs = _Defs, body = _Body}, _TAS) ->
+    %% todo: it looks as if defs is a list var-fun pairs, and body is a normal.
+    %% todo: for now, just return nil
+    %% used in list_comprehension
+    {literal,[]};
 compile_body(#c_tuple{es = Es}, TAS) ->
     {'mktuple', compile_bodies(Es, TAS)};
+compile_body(#c_cons{hd = Hd, tl = Tl}, TAS) ->
+    {'mkcons', compile_body(Hd, TAS), compile_body(Tl, TAS)};
 compile_body(#c_literal{val = Literal}, _TAS) ->
     %% todo: when are we going to fix conversion to ocaml casing?
     {literal, Literal};
@@ -79,15 +87,28 @@ compile_body(#c_var{name = Name}, _TAS) ->
     %% todo: when are we going to fix conversion to ocaml casing?
     {variable, Name};
 compile_body(#c_call{module = Module, name = Name, args = Args}, TAS) ->
-    {'call', {'/', Module#c_literal.val, Name#c_literal.val, length(Args)}, compile_bodies(Args, TAS)}.
+    {'call', {'/', Module#c_literal.val, Name#c_literal.val, length(Args)}, compile_bodies(Args, TAS)};
+compile_body(#c_apply{op = Op, args = Args}, TAS) ->
+    {'apply', compile_body(Op, TAS), compile_bodies(Args, TAS)};
+compile_body(#c_try{body = Body}, TAS) ->
+    %%% todo: handle try-catch for real
+    compile_body(Body, TAS);
+compile_body(#c_seq{}, _TAS) ->
+    %%% todo: handle list comprehension, for now, return empty list
+    {literal,[]}.
+
+
+%%% the erlang core always has a top-level case
+optimize_match({match,{case_values,[]},[{'match|',[],true,Body}]}) -> Body;
+optimize_match(Keep) -> Keep.
+
 
 
 
 %%% two levels to detect if this is arbitralily recursive.
-get_case_values(#c_values{es = Es},     TAS ) -> lists:map(fun(E) -> get_case_values2(E, TAS) end, Es);
-get_case_values(V,                      TAS ) -> get_case_values2(V, TAS).
+get_case_values(#c_values{es = Es},    TAS) -> {case_values, lists:map(fun(E) -> compile_body(E, TAS) end, Es)};
+get_case_values(V,                     TAS) -> compile_body(V, TAS).
 
-get_case_values2(#c_var{name = Name},  _TAS ) -> {variable, Name}.
 
 
 %%% compile the clauses, skip the match_fail, since we want the ocaml compiler to complain
@@ -102,13 +123,19 @@ compile_clauses([#c_clause{pats = Pats, guard = Guard, body = Body}|Cs], TAS) ->
 compile_patterns(Pats, TAS) ->
     lists:map(fun(Pat) -> compile_pattern(Pat, TAS) end, Pats).
 
-compile_pattern(#c_tuple   {es = ES},      TAS) -> {pattern_tuple, compile_patterns(ES, TAS)};
-compile_pattern(#c_literal {val = Val},   _TAS) -> {pattern_literal, Val};
-compile_pattern(#c_var     {name = Name}, _TAS) -> {pattern_var, Name}.
+compile_pattern(#c_cons   {hd = Hd, tl = Tl},TAS) -> {pattern_cons, compile_pattern(Hd, TAS), compile_pattern(Tl, TAS)};
+compile_pattern(#c_literal{val = Val},      _TAS) -> {pattern_literal, Val};
+compile_pattern(#c_tuple  {es = ES},         TAS) -> {pattern_tuple, compile_patterns(ES, TAS)};
+compile_pattern(#c_var    {name = Name},    _TAS) -> {pattern_var, Name};
+compile_pattern(#c_alias  {var = Var, pat = Pat}, TAS) ->
+    %%% todo: MFA is alias in "warn_spec_missing_fun({M, F, A} = MFA, Contracts) ->"
+    {alias, Var, compile_pattern(Pat, TAS)}.
+
 
 
 compile_when(#c_literal{val = true}, _TAS) -> true;
-compile_when(#c_literal{val = Guard}, TAS) -> compile_body(Guard, TAS).
+compile_when(#c_literal{val = Guard}, TAS) -> compile_body(Guard, TAS);
+compile_when(#c_call{} = Body,        TAS) -> compile_body(Body, TAS).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

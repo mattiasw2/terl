@@ -19,8 +19,10 @@ upsert1(M) ->
     M#{name => "mattias"}.
 
 -spec access1(map_record_like_t()) -> integer().
-access1(#{age := Age} = Person) ->
-    Age.
+access1(#{age := Age} = Person) -> Age.
+
+%% -spec access2(map_record_like_t()) -> integer().
+%% access2(#{age => Age} = Person) -> Age.
 
 %% dialyzer doesn't seem to handle advanced map-spec
 %% make dialyzer_sample

@@ -1,4 +1,8 @@
 %% -*- erlang-indent-level: 4;indent-tabs-mode: nil -*-
+
+%% todo: more types, see http://www.erlang.org/doc/reference_manual/typespec.html
+%% -spec foo(T1, T2) -> T3 ; (T4, T5) -> T6.
+
 -module(te_experiments).
 
 -compile(export_all).
@@ -17,25 +21,6 @@
 %%% https://github.com/extend/xerl
 
 
-
-read(std, Print) ->
-    {ok, _, R} = ec_compile:erl_source_to_core_ast("std.erl"),
-    case Print of
-        true  -> io:format("~p",[R]), ok;
-        false -> R
-    end.
-
-%% not working, create core file instead like this:
-%%     X = compile:file("std.erl",[to_core]).
-%%
-read2(File, Print) ->
-    {ok, _, R} = ec_compile:erl_source_to_core_ast(File),
-    %% true = cerl:is_c_module(R),
-    case Print of
-        true  -> core_pp:format(R), io:write(R);
-        false -> R
-    end.
-
 %%% trying to understand the core
 -spec t1(string()) -> term().
 t1(File) ->
@@ -45,10 +30,55 @@ t1(File) ->
     Attrs = Module#c_module.attrs,
     Defs = Module#c_module.defs,
     TypeAndSpecs = get_spec_and_types(Attrs),
-    get_functions(Defs, TypeAndSpecs).
+    Funs = get_functions(Defs, TypeAndSpecs),
+    lists:map(fun(F) -> generate_ocaml(F, TypeAndSpecs) end, Funs).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% get the ocaml abstract code
+
+generate_ocaml({letrec, Fun, Args, Body}, TAS) ->
+    OcamlHead = make_head(Fun, Args, TAS),
+    OcamlBody = generate_ocaml(Body, TAS),
+    {letrec2, OcamlHead, OcamlBody};
+generate_ocaml({match, {case_values, Match}, Matches}, _TAS) ->
+    %% todo: matches
+    Matches2 = Matches,
+    {match2, fix_variables(Match), Matches2};
+generate_ocaml({'let', {'=', Vars, Arg}, Body}, TAS) ->
+    {let2, {'=2', fix_variables(Vars), generate_ocaml(Arg, TAS)}, generate_ocaml(Body, TAS)};
+generate_ocaml(Keep, _TAS) ->
+    Keep.
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% make casing legal ok for ocaml
+fix_function_name({'/',F,N}) -> atom_to_list(F) ++ "_" ++ integer_to_list(N).
+
+fix_variables(L) -> lists:map(fun fix_variable/1, L).
+fix_variable ({variable, V}) -> make_first_lower(V);
+fix_variable ({c_var,_ , V}) -> make_first_lower(V).
+
+name_args(Args) -> lists:map(fun name_arg/1, Args).
+name_arg (Arg ) -> make_first_lower(Arg).
+
+make_first_lower(Arg) -> [H|T] = atom_to_list(Arg), string:to_lower([H]) ++ T.
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% the head as pseudo-ocaml
+
+make_head({'/',_F,_N}=Fun, Args, TAS) ->
+    {head2, fix_function_name(Fun), name_args(Args), function_return_type(Fun, TAS)}.
+
+function_return_type({'/',_F,_N}=_Fun, _TAS) ->
+    %% todo
+    [].
+
+
 get_functions(Defs, TAS) ->
     lists:map(fun(Def) -> get_function(Def, TAS) end, Defs).
 
@@ -56,7 +86,13 @@ get_function({#c_var{name = {F, N}}, #c_fun{vars = Vars, body = Body}}, TAS) ->
     Fun = {'/', F, N},
     Args = lists:map(fun(Arg) -> get_arg(Arg, TAS) end, Vars),
     Def = compile_body(Body, TAS),
-    {'letrec', Fun, Args, Def}.
+    LetRec = {'letrec', Fun, Args, Def},
+    optimize_letrec(LetRec).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% convert the #c_ records to our structure
+%%% (I am not sure this step should be kept, I have it now to see
+%%% what/how the #c_ structure is used)
 
 %%% get the header of the function
 %%% todo: should I add the type info for args and return?
@@ -67,11 +103,12 @@ compile_bodies(Bodies, TAS) ->
 
 %%% compile the body into ocaml abstract code
 compile_body(#c_map{arg = Map, es = Es}, TAS) ->
+    %% create1() ->  #{age => 10}.
     Map2 = compile_body(Map, TAS),
     Op = lists:map(fun(E) -> compile_map_arg(E, TAS) end, Es),
     {map, Map2, Op};
 compile_body(#c_case{arg = Arg, clauses = Clauses}, TAS) ->
-    Res = {'match', get_case_values(Arg, TAS), compile_clauses(Clauses, TAS)},
+    Res = {match, get_case_values(Arg, TAS), compile_clauses(Clauses, TAS)},
     optimize_match(Res);
 compile_body(#c_let{vars = Vars, arg = Arg, body = Body}, TAS) ->
     {'let', {'=', Vars, Arg}, compile_body(Body, TAS)};
@@ -110,15 +147,33 @@ compile_map_arg(#c_map_pair{op = #c_literal{val = Op}, key = Key, val = Val}, TA
     end.
 
 %%% the erlang core always has a top-level case
-optimize_match({match,{case_values,[]},[{'match|',[],true,Body}]}) -> Body;
+optimize_match({match,{case_values,[]},[{'match|',[],true,Body}]}) ->
+    %% simplify case where no arguments
+    Body;
 optimize_match(Keep) -> Keep.
+
+
+%%% simplify the core erlang to make the generated code more similar to the original erlang code
+optimize_letrec({letrec,FunName,[cor0],
+                 {match,{case_values,[{variable,cor0}]}, %added case_values [..] due to get_case_values
+                  [{'match|',[{pattern_var,VarName}],true,Body}]}}) ->
+    %% keep the original variable names if single clause (1 arg)
+    {letrec,FunName,[VarName],Body};
+optimize_letrec({letrec,FunName,[cor1,cor0],
+                 {match,{case_values,[{variable,cor1},{variable,cor0}]},
+                  [{'match|',[{pattern_var,VarName1},{pattern_var,VarName0}],true,Body}]}}) ->
+    %% keep the original variable names if single clause (2 args)
+    %% extend to 3, 4, .. args
+    {letrec,FunName,[VarName1,VarName0],Body};
+optimize_letrec(Keep) -> Keep.
 
 
 
 
 %%% two levels to detect if this is arbitralily recursive.
+%%% erlang core questions, why did you insert #c_values?
 get_case_values(#c_values{es = Es},    TAS) -> {case_values, lists:map(fun(E) -> compile_body(E, TAS) end, Es)};
-get_case_values(V,                     TAS) -> compile_body(V, TAS).
+get_case_values(V,                     TAS) -> {case_values, [compile_body(V, TAS)]}. %ok?????
 
 
 

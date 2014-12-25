@@ -66,6 +66,10 @@ compile_bodies(Bodies, TAS) ->
     lists:map(fun(Body) -> compile_body(Body, TAS) end, Bodies).
 
 %%% compile the body into ocaml abstract code
+compile_body(#c_map{arg = Map, es = Es}, TAS) ->
+    Map2 = compile_body(Map, TAS),
+    Op = lists:map(fun(E) -> compile_map_arg(E, TAS) end, Es),
+    {map, Map2, Op};
 compile_body(#c_case{arg = Arg, clauses = Clauses}, TAS) ->
     Res = {'match', get_case_values(Arg, TAS), compile_clauses(Clauses, TAS)},
     optimize_match(Res);
@@ -97,6 +101,13 @@ compile_body(#c_seq{}, _TAS) ->
     %%% todo: handle list comprehension, for now, return empty list
     {literal,[]}.
 
+compile_map_arg(#c_map_pair{op = #c_literal{val = Op}, key = Key, val = Val}, TAS) ->
+    Key2 = compile_body(Key, TAS),
+    Val2 = compile_body(Val, TAS),
+    case Op of
+        exact -> {exact, Key2, Val2};           % change1(M) -> M#{age := 20}. :=, replace existing value
+        assoc -> {assoc, Key2, Val2}            % upsert1(M) -> M#{name => "mattias"}.=>, add or replace
+    end.
 
 %%% the erlang core always has a top-level case
 optimize_match({match,{case_values,[]},[{'match|',[],true,Body}]}) -> Body;
@@ -123,10 +134,15 @@ compile_clauses([#c_clause{pats = Pats, guard = Guard, body = Body}|Cs], TAS) ->
 compile_patterns(Pats, TAS) ->
     lists:map(fun(Pat) -> compile_pattern(Pat, TAS) end, Pats).
 
-compile_pattern(#c_cons   {hd = Hd, tl = Tl},TAS) -> {pattern_cons, compile_pattern(Hd, TAS), compile_pattern(Tl, TAS)};
-compile_pattern(#c_literal{val = Val},      _TAS) -> {pattern_literal, Val};
-compile_pattern(#c_tuple  {es = ES},         TAS) -> {pattern_tuple, compile_patterns(ES, TAS)};
-compile_pattern(#c_var    {name = Name},    _TAS) -> {pattern_var, Name};
+compile_pattern(#c_cons   {hd = Hd, tl = Tl},   TAS) -> {pattern_cons, compile_pattern(Hd, TAS), compile_pattern(Tl, TAS)};
+compile_pattern(#c_literal{val = Val},         _TAS) -> {pattern_literal, Val};
+compile_pattern(#c_tuple  {es = ES},            TAS) -> {pattern_tuple, compile_patterns(ES, TAS)};
+compile_pattern(#c_var    {name = Name},       _TAS) -> {pattern_var, Name};
+compile_pattern(#c_map    {arg = _Arg, es = _ES}, _TAS) ->
+    %% access1(#{age := Age} = Person) -> Age.
+    %% es :: [#c_map_pair()]
+    %% todo: handle c_map_pair
+    {pattern_map};
 compile_pattern(#c_alias  {var = Var, pat = Pat}, TAS) ->
     %%% todo: MFA is alias in "warn_spec_missing_fun({M, F, A} = MFA, Contracts) ->"
     {alias, Var, compile_pattern(Pat, TAS)}.

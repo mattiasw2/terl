@@ -21,6 +21,9 @@ build2a(Name, Age) ->
 build2b(Name, Age) ->
     #contact{name=Name,age=Age}.
 
+newborn(Name) ->
+    #contact{name=Name,age=0}.
+
 
 access1(Contact) ->
     Contact#contact.name.

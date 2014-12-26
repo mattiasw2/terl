@@ -36,18 +36,52 @@ t1(File) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% get the ocaml abstract code
 
+generate_ocamls(Cs, TAS) -> lists:map(fun(C) -> generate_ocaml(C, TAS) end, Cs).
+
 generate_ocaml({letrec, Fun, Args, Body}, TAS) ->
     OcamlHead = make_head(Fun, Args, TAS),
     OcamlBody = generate_ocaml(Body, TAS),
     {letrec2, OcamlHead, OcamlBody};
-generate_ocaml({match, {case_values, Match}, Matches}, _TAS) ->
+generate_ocaml({match, {case_values, Match}, Matches}, TAS) ->
     %% todo: matches
-    Matches2 = Matches,
+    Matches2 = generate_matches(Matches, TAS),
     {match2, fix_variables(Match), Matches2};
 generate_ocaml({'let', {'=', Vars, Arg}, Body}, TAS) ->
     {let2, {'=2', fix_variables(Vars), generate_ocaml(Arg, TAS)}, generate_ocaml(Body, TAS)};
+generate_ocaml({mktuple, Args}, TAS) ->
+    PV = is_polymorphic_variant_tuple(Args, TAS),
+    case PV of
+        {some, Res} -> Res;
+        none -> {mktuple2, generate_ocamls(Args, TAS)}
+    end;
+generate_ocaml({variable,_Name}=V, _TAS) -> fix_variable(V);
+generate_ocaml({literal,Atom}=V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(V);
+generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) -> Number * 1.0;
+generate_ocaml(true, _) -> true;
 generate_ocaml(Keep, _TAS) ->
-    Keep.
+    {todo, Keep}.
+
+%%% if tuple should be converted to ocaml polymorphic variant,
+%%% return {some, PV}, else return none.
+is_polymorphic_variant_tuple([], _) -> none;
+is_polymorphic_variant_tuple([{literal, Atom}|T], TAS) when is_atom(Atom) ->
+    %% todo: should I check in TAS?
+    {some, {polymorphic_variant, fix_polymorphic_variant(Atom), generate_ocamls(T, TAS)}};
+is_polymorphic_variant_tuple(_, _) -> none.
+
+
+generate_matches(L, TAS) -> lists:map(fun(M) -> generate_match(M, TAS) end, L).
+
+generate_match({'match|', Pattern, When, Body}, TAS) ->
+    {'match|2', generate_ocaml_pattern(Pattern, TAS), generate_ocaml(When, TAS), generate_ocaml(Body, TAS)}.
+
+generate_ocaml_pattern(Pattern, _TAS) ->
+    {todo, Pattern}.
+
+
+
+
+
 
 
 
@@ -60,10 +94,16 @@ fix_variables(L) -> lists:map(fun fix_variable/1, L).
 fix_variable ({variable, V}) -> make_first_lower(V);
 fix_variable ({c_var,_ , V}) -> make_first_lower(V).
 
+%%% bit unlogical, for some, I have kept the {variable / {literal stuff, sometimes not
+fix_polymorphic_variant(Atom) when is_atom(Atom) -> "`" ++ make_first_upper(Atom).
+
+
+
 name_args(Args) -> lists:map(fun name_arg/1, Args).
 name_arg (Arg ) -> make_first_lower(Arg).
 
-make_first_lower(Arg) -> [H|T] = atom_to_list(Arg), string:to_lower([H]) ++ T.
+make_first_lower(Arg) when is_atom(Arg) -> [H|T] = atom_to_list(Arg), string:to_lower([H]) ++ T.
+make_first_upper(Arg) when is_atom(Arg) -> [H|T] = atom_to_list(Arg), string:to_upper([H]) ++ T.
 
 
 

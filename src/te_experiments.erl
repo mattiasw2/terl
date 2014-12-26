@@ -63,7 +63,6 @@ generate_ocaml(Keep, _TAS) ->
 
 %%% if tuple should be converted to ocaml polymorphic variant,
 %%% return {some, PV}, else return none.
-is_polymorphic_variant_tuple([], _) -> none;
 is_polymorphic_variant_tuple([{literal, Atom}|T], TAS) when is_atom(Atom) ->
     %% todo: should I check in TAS?
     {some, {polymorphic_variant, fix_polymorphic_variant(Atom), generate_ocamls(T, TAS)}};
@@ -77,13 +76,6 @@ generate_match({'match|', Pattern, When, Body}, TAS) ->
 
 generate_ocaml_pattern(Pattern, _TAS) ->
     {todo, Pattern}.
-
-
-
-
-
-
-
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -55,9 +55,10 @@ generate_ocaml({mktuple, Args}, TAS) ->
         none -> {mktuple2, generate_ocamls(Args, TAS)}
     end;
 generate_ocaml({variable,_Name}=V, _TAS) -> fix_variable(V);
-generate_ocaml({literal,Atom}=V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(V);
+generate_ocaml({literal,Atom}=V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(Atom);
 generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) -> Number * 1.0;
 generate_ocaml(true, _) -> true;
+generate_ocaml({call, Fun, Args}, TAS) -> make_call(Fun, Args, TAS);
 generate_ocaml(Keep, _TAS) ->
     {todo, Keep}.
 
@@ -110,6 +111,16 @@ function_return_type({'/',_F,_N}=_Fun, _TAS) ->
     %% todo
     [].
 
+make_call({'/', M, F, N}, Args, TAS) ->
+    N = length(Args),
+    Fun = {'/', F, N},
+    {call_module2, M, fix_function_name(Fun), generate_ocamls(Args, TAS)};
+make_call({'/', _F, N}=Fun, Args, TAS) ->
+    N = length(Args),
+    {call2, fix_function_name(Fun), generate_ocamls(Args, TAS)}.
+
+
+
 
 get_functions(Defs, TAS) ->
     lists:map(fun(Def) -> get_function(Def, TAS) end, Defs).
@@ -143,7 +154,7 @@ compile_body(#c_case{arg = Arg, clauses = Clauses}, TAS) ->
     Res = {match, get_case_values(Arg, TAS), compile_clauses(Clauses, TAS)},
     optimize_match(Res);
 compile_body(#c_let{vars = Vars, arg = Arg, body = Body}, TAS) ->
-    {'let', {'=', Vars, Arg}, compile_body(Body, TAS)};
+    {'let', {'=', Vars, compile_body(Arg, TAS)}, compile_body(Body, TAS)};
 compile_body(#c_letrec{defs = _Defs, body = _Body}, _TAS) ->
     %% todo: it looks as if defs is a list var-fun pairs, and body is a normal.
     %% todo: for now, just return nil

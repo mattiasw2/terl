@@ -42,6 +42,10 @@ generate_ocaml({letrec, Fun, Args, Body}, TAS) ->
     OcamlHead = make_head(Fun, Args, TAS),
     OcamlBody = generate_ocaml(Body, TAS),
     {letrec2, OcamlHead, OcamlBody};
+generate_ocaml({'fun_anon', Args, Def}, TAS) ->
+    OcamlHead = name_args(Args),
+    OcamlBody = generate_ocaml(Def, TAS),
+    {'fun_anon2', OcamlHead, OcamlBody};
 generate_ocaml({match, {case_values, Match}, Matches}, TAS) ->
     %% todo: matches
     Matches2 = generate_matches(Matches, TAS),
@@ -49,13 +53,15 @@ generate_ocaml({match, {case_values, Match}, Matches}, TAS) ->
 generate_ocaml({'let', {'=', Vars, Arg}, Body}, TAS) ->
     {let2, {'=2', fix_variables(Vars), generate_ocaml(Arg, TAS)}, generate_ocaml(Body, TAS)};
 generate_ocaml({mktuple, Args}, TAS) ->
-    PV = is_polymorphic_variant_tuple(Args, TAS),
-    case PV of
-        {some, Res} -> Res;
-        none -> {mktuple2, generate_ocamls(Args, TAS)}
+    case is_polymorphic_variant_tuple(Args, TAS) of
+        true  -> {polymorphic_variant2, fix_polymorphic_variant(hd(Args)), generate_ocamls(tl(Args), TAS)};
+        false -> {mktuple2, generate_ocamls(Args, TAS)}
     end;
+generate_ocaml({mkcons, H, T}, TAS) ->
+    {mkcons2, generate_ocaml(H, TAS), generate_ocaml(T, TAS)};
+generate_ocaml({mknil}, _TAS) -> {mknil2};
 generate_ocaml({variable,_Name}=V, _TAS) -> fix_variable(V);
-generate_ocaml({literal,Atom}=V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(Atom);
+generate_ocaml({literal,Atom}=_V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(Atom);
 generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) -> Number * 1.0;
 generate_ocaml(true, _) -> true;
 generate_ocaml({call, Fun, Args}, TAS) -> make_call(Fun, Args, TAS);
@@ -64,19 +70,41 @@ generate_ocaml(Keep, _TAS) ->
 
 %%% if tuple should be converted to ocaml polymorphic variant,
 %%% return {some, PV}, else return none.
-is_polymorphic_variant_tuple([{literal, Atom}|T], TAS) when is_atom(Atom) ->
+is_polymorphic_variant_tuple([{literal, Atom}|_], _TAS) when is_atom(Atom) ->
     %% todo: should I check in TAS?
-    {some, {polymorphic_variant, fix_polymorphic_variant(Atom), generate_ocamls(T, TAS)}};
-is_polymorphic_variant_tuple(_, _) -> none.
+    true;
+is_polymorphic_variant_tuple([{pattern_literal, Atom}|_], _TAS) when is_atom(Atom) ->
+    %% todo: should I check in TAS?
+    true;
+is_polymorphic_variant_tuple(_, _) -> false.
 
 
 generate_matches(L, TAS) -> lists:map(fun(M) -> generate_match(M, TAS) end, L).
 
 generate_match({'match|', Pattern, When, Body}, TAS) ->
-    {'match|2', generate_ocaml_pattern(Pattern, TAS), generate_ocaml(When, TAS), generate_ocaml(Body, TAS)}.
+    {'match|2', generate_ocaml_patterns(Pattern, TAS), generate_ocaml(When, TAS), generate_ocaml(Body, TAS)}.
 
-generate_ocaml_pattern(Pattern, _TAS) ->
-    {todo, Pattern}.
+generate_ocaml_patterns(Pats, TAS) -> lists:map(fun(Pat) -> generate_ocaml_pattern(Pat, TAS) end, Pats).
+
+generate_ocaml_pattern({pattern_literal, Atom}, _TAS) when is_atom(Atom) ->
+    fix_polymorphic_variant(Atom);
+generate_ocaml_pattern({pattern_literal, Number}, _TAS) when is_number(Number) ->
+    Number * 1.0;
+generate_ocaml_pattern({pattern_literal, Other}, _TAS) ->
+    Other;
+generate_ocaml_pattern({pattern_var, _Var}=V, _TAS) ->
+    fix_variable(V);
+generate_ocaml_pattern({pattern_cons, H, T}, TAS) ->
+    {mkcons2, generate_ocaml_pattern(H, TAS), generate_ocaml_pattern(T, TAS)};
+generate_ocaml_pattern({pattern_nil}, _TAS) ->
+    {mknil2};
+generate_ocaml_pattern({pattern_tuple, Args}, TAS) ->
+    case is_polymorphic_variant_tuple(Args, TAS) of
+        true  -> {polymorphic_variant2, fix_polymorphic_variant(hd(Args)), generate_ocaml_patterns(tl(Args), TAS)};
+        false -> {mktuple2, generate_ocaml_patterns(Args, TAS)}
+    end.
+
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -85,9 +113,12 @@ fix_function_name({'/',F,N}) -> atom_to_list(F) ++ "_" ++ integer_to_list(N).
 
 fix_variables(L) -> lists:map(fun fix_variable/1, L).
 fix_variable ({variable, V}) -> make_first_lower(V);
+fix_variable ({pattern_var, V}) -> make_first_lower(V);
 fix_variable ({c_var,_ , V}) -> make_first_lower(V).
 
 %%% bit unlogical, for some, I have kept the {variable / {literal stuff, sometimes not
+fix_polymorphic_variant({literal,Atom}) when is_atom(Atom) -> "`" ++ make_first_upper(Atom);
+fix_polymorphic_variant({pattern_literal,Atom}) when is_atom(Atom) -> "`" ++ make_first_upper(Atom);
 fix_polymorphic_variant(Atom) when is_atom(Atom) -> "`" ++ make_first_upper(Atom).
 
 
@@ -132,6 +163,14 @@ get_function({#c_var{name = {F, N}}, #c_fun{vars = Vars, body = Body}}, TAS) ->
     LetRec = {'letrec', Fun, Args, Def},
     optimize_letrec(LetRec).
 
+%%% #c_fun are also used for anonymous functions
+%%% todo: add support for named anonymous functions
+get_anon_function(#c_fun{vars = Vars, body = Body}, TAS) ->
+    Args = lists:map(fun(Arg) -> get_arg(Arg, TAS) end, Vars),
+    Def = compile_body(Body, TAS),
+    LetRec = {'fun_anon', Args, Def},
+    optimize_letrec(LetRec).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% convert the #c_ records to our structure
 %%% (I am not sure this step should be kept, I have it now to see
@@ -145,6 +184,10 @@ compile_bodies(Bodies, TAS) ->
     lists:map(fun(Body) -> compile_body(Body, TAS) end, Bodies).
 
 %%% compile the body into ocaml abstract code
+compile_body(#c_fun{} = Fun, TAS) ->
+    %% anonymous function in
+    %% list1(L) -> lists:map(fun(E) -> E end, L).
+    get_anon_function(Fun, TAS);
 compile_body(#c_map{arg = Map, es = Es}, TAS) ->
     %% create1() ->  #{age => 10}.
     Map2 = compile_body(Map, TAS),
@@ -164,6 +207,8 @@ compile_body(#c_tuple{es = Es}, TAS) ->
     {'mktuple', compile_bodies(Es, TAS)};
 compile_body(#c_cons{hd = Hd, tl = Tl}, TAS) ->
     {'mkcons', compile_body(Hd, TAS), compile_body(Tl, TAS)};
+compile_body(#c_literal{val = []}, _TAS) ->
+    {mknil};
 compile_body(#c_literal{val = Literal}, _TAS) ->
     %% todo: when are we going to fix conversion to ocaml casing?
     {literal, Literal};
@@ -197,17 +242,28 @@ optimize_match(Keep) -> Keep.
 
 
 %%% simplify the core erlang to make the generated code more similar to the original erlang code
-optimize_letrec({letrec,FunName,[cor0],
-                 {match,{case_values,[{variable,cor0}]}, %added case_values [..] due to get_case_values
+optimize_letrec({letrec,FunName,[Cor0],
+                 {match,{case_values,[{variable,Cor0}]}, %added case_values [..] due to get_case_values
                   [{'match|',[{pattern_var,VarName}],true,Body}]}}) ->
     %% keep the original variable names if single clause (1 arg)
     {letrec,FunName,[VarName],Body};
-optimize_letrec({letrec,FunName,[cor1,cor0],
-                 {match,{case_values,[{variable,cor1},{variable,cor0}]},
+optimize_letrec({letrec,FunName,[Cor1,Cor0],
+                 {match,{case_values,[{variable,Cor1},{variable,Cor0}]},
                   [{'match|',[{pattern_var,VarName1},{pattern_var,VarName0}],true,Body}]}}) ->
     %% keep the original variable names if single clause (2 args)
     %% extend to 3, 4, .. args
     {letrec,FunName,[VarName1,VarName0],Body};
+optimize_letrec({fun_anon,[Cor0],
+                 {match,{case_values,[{variable,Cor0}]}, %added case_values [..] due to get_case_values
+                  [{'match|',[{pattern_var,VarName}],true,Body}]}}) ->
+    %% keep the original variable names if single clause (1 arg)
+    {fun_anon,[VarName],Body};
+optimize_letrec({fun_anon,[Cor1,Cor0],
+                 {match,{case_values,[{variable,Cor1},{variable,Cor0}]},
+                  [{'match|',[{pattern_var,VarName1},{pattern_var,VarName0}],true,Body}]}}) ->
+    %% keep the original variable names if single clause (2 args)
+    %% extend to 3, 4, .. args
+    {fun_anon,[VarName1,VarName0],Body};
 optimize_letrec(Keep) -> Keep.
 
 
@@ -224,6 +280,7 @@ get_case_values(V,                     TAS) -> {case_values, [compile_body(V, TA
 %%% if pattern not complete.
 compile_clauses([], _TAS) -> [];
 compile_clauses([#c_clause{anno = [compiler_generated]}|Cs], TAS) -> compile_clauses(Cs, TAS);
+compile_clauses([#c_clause{anno = [_,_,compiler_generated]}|Cs], TAS) -> compile_clauses(Cs, TAS);
 compile_clauses([#c_clause{pats = Pats, guard = Guard, body = Body}|Cs], TAS) ->
     [{'match|', compile_patterns(Pats, TAS), compile_when(Guard, TAS), compile_body(Body, TAS)}
      |compile_clauses(Cs, TAS)].

@@ -63,8 +63,13 @@ generate_ocaml({mknil}, _TAS) -> {mknil2};
 generate_ocaml({variable,_Name}=V, _TAS) -> fix_variable(V);
 generate_ocaml({literal,Atom}=_V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(Atom);
 generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) -> Number * 1.0;
+generate_ocaml({literal_string, String}, _TAS) -> {literal_string2, String};
 generate_ocaml(true, _) -> true;
 generate_ocaml({call, Fun, Args}, TAS) -> make_call(Fun, Args, TAS);
+generate_ocaml({apply, Op, Args}, TAS) ->
+    {'apply2',
+     generate_ocaml(Op, TAS),
+     generate_ocamls(Args, TAS)};
 generate_ocaml(Keep, _TAS) ->
     {todo, Keep}.
 
@@ -217,8 +222,22 @@ compile_body(#c_var{name = Name}, _TAS) ->
     {variable, Name};
 compile_body(#c_call{module = Module, name = Name, args = Args}, TAS) ->
     {'call', {'/', Module#c_literal.val, Name#c_literal.val, length(Args)}, compile_bodies(Args, TAS)};
-compile_body(#c_apply{op = Op, args = Args}, TAS) ->
-    {'apply', compile_body(Op, TAS), compile_bodies(Args, TAS)};
+compile_body(#c_apply{op = Op, args = Args} = A, TAS) ->
+    %% it seems that op is always a c_var, even if the name can be like {map,2}
+    %% like in the recursive call in "map(F, [H|T]) -> [F(H)|map(F, T)];"
+    case is_tuple(Op#c_var.name) of
+        true ->
+            case Op#c_var.name of
+                {F,N} ->
+                    %% io:format("Strange apply op = ~p, args=~p~n",[Op, Args]),
+                    %% maybe an apply is added here to handle code upgrade?
+                    %% {apply, {literal_string, fix_function_name({'/',F,N})}, compile_bodies(Args, TAS)};
+                    {call, {'/',F,N}, compile_bodies(Args, TAS)};
+                _ ->
+                    throw({strange_op_in_c_apply, A})
+            end;
+        false -> {apply, compile_body(Op, TAS), compile_bodies(Args, TAS)}
+    end;
 compile_body(#c_try{body = Body}, TAS) ->
     %%% todo: handle try-catch for real
     compile_body(Body, TAS);

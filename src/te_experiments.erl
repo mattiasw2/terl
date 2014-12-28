@@ -85,8 +85,8 @@ generate_ocaml({match, {case_values, Match}, Matches}, TAS) ->
     %% todo: matches
     Matches2 = generate_matches(Matches, TAS),
     {match2, generate_ocamls(Match,TAS), Matches2};
-generate_ocaml({'let', {'=', Vars, Arg}, Body}, TAS) ->
-    {let2, {'=2', fix_variables(Vars), generate_ocaml(Arg, TAS)}, generate_ocaml(Body, TAS)};
+generate_ocaml({'let', {'=', Var, Arg}, Body}, TAS) ->
+    {let2, {'=2', fix_variable(Var), generate_ocaml(Arg, TAS)}, generate_ocaml(Body, TAS)};
 generate_ocaml({mktuple, Args}, TAS) ->
     case is_polymorphic_variant_tuple(Args, TAS) of
         true  -> {polymorphic_variant2, fix_polymorphic_variant(hd(Args)), generate_ocamls(tl(Args), TAS)};
@@ -248,8 +248,9 @@ compile_body(#c_map{arg = Map, es = Es}, TAS) ->
 compile_body(#c_case{arg = Arg, clauses = Clauses}, TAS) ->
     Res = {match, get_case_values(Arg, TAS), compile_clauses(Clauses, TAS)},
     optimize_match(Res);
-compile_body(#c_let{vars = Vars, arg = Arg, body = Body}, TAS) ->
-    {'let', {'=', Vars, compile_body(Arg, TAS)}, compile_body(Body, TAS)};
+compile_body(#c_let{vars = [Var], arg = Arg, body = Body}, TAS) ->
+    %% todo: investigate what vars means, is the list only 1 single element?
+    {'let', {'=', Var, compile_body(Arg, TAS)}, compile_body(Body, TAS)};
 compile_body(#c_letrec{defs = _Defs, body = _Body}, _TAS) ->
     %% todo: it looks as if defs is a list var-fun pairs, and body is a normal.
     %% todo: for now, just return nil

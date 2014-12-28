@@ -31,7 +31,42 @@ t1(File) ->
     Defs = Module#c_module.defs,
     TypeAndSpecs = get_spec_and_types(Attrs),
     Funs = get_functions(Defs, TypeAndSpecs),
-    lists:map(fun(F) -> generate_ocaml(F, TypeAndSpecs) end, Funs).
+    Code=lists:map(fun(F) -> generate_ocaml(F, TypeAndSpecs) end, Funs),
+    lists:foreach(fun(C) -> print(standard_io, C) end, Code).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% print ocaml from syntax tree constructed by generated_ocaml
+
+print(S, {letrec2, Head, Body}) ->
+    io:put_chars(S," and "),
+    print(S, Head),
+    io:nl(S),
+    print(S, Body),
+    io:nl(S);
+print(S, {head2, Name, Args, ReturnType}) ->
+    io:put_chars(S, Name),
+    %% make tuple of args
+    prints(S,Args,"(", ",", ")"),
+    case ReturnType of
+        [] -> ok;
+        Chars -> io:put_chars(S," : "),
+                 io:put_chars(S, Chars)
+    end,
+    io:put_chars(S," = ");
+print(S, Skip) ->
+    io:format(S, "Skip ~p~n", [element(1,Skip)]).
+
+
+prints(S, Strings, Begin, Delimeter, End) ->
+    io:put_chars(S, Begin),
+    prints(S, Strings, Delimeter),
+    io:put_chars(S, End).
+
+prints(_, [], _            ) -> ok;
+prints(S, [H], _           ) -> io:put_chars(S,H);
+prints(S, [H|T], Delimeter ) -> io:put_chars(S,H), io:put_chars(S,Delimeter), prints(S,T,Delimeter).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% get the ocaml abstract code
@@ -177,7 +212,7 @@ get_function({#c_var{name = {F, N}}, #c_fun{vars = Vars, body = Body}}, TAS) ->
     Fun = {'/', F, N},
     Args = lists:map(fun(Arg) -> get_arg(Arg, TAS) end, Vars),
     Def = compile_body(Body, TAS),
-    LetRec = {'letrec', Fun, Args, Def},
+    LetRec = {letrec, Fun, Args, Def},
     optimize_letrec(LetRec).
 
 %%% #c_fun are also used for anonymous functions

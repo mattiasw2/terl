@@ -69,9 +69,9 @@ generate_ocaml({call, Fun, Args}, TAS) -> make_call(Fun, Args, TAS);
 generate_ocaml({apply, Op, Args}, TAS) ->
     {'apply2',
      generate_ocaml(Op, TAS),
-     generate_ocamls(Args, TAS)};
-generate_ocaml(Keep, _TAS) ->
-    {todo, Keep}.
+     generate_ocamls(Args, TAS)}.
+%% generate_ocaml(Keep, _TAS) ->
+%%     {todo, Keep}.
 
 %%% if tuple should be converted to ocaml polymorphic variant,
 %%% return {some, PV}, else return none.
@@ -103,11 +103,18 @@ generate_ocaml_pattern({pattern_cons, H, T}, TAS) ->
     {mkcons2, generate_ocaml_pattern(H, TAS), generate_ocaml_pattern(T, TAS)};
 generate_ocaml_pattern({pattern_nil}, _TAS) ->
     {mknil2};
+generate_ocaml_pattern({alias, Var, Expr}, TAS) ->
+    {alias2, fix_variable(Var), generate_ocaml_pattern(Expr, TAS)};
 generate_ocaml_pattern({pattern_tuple, Args}, TAS) ->
     case is_polymorphic_variant_tuple(Args, TAS) of
         true  -> {polymorphic_variant2, fix_polymorphic_variant(hd(Args)), generate_ocaml_patterns(tl(Args), TAS)};
         false -> {mktuple2, generate_ocaml_patterns(Args, TAS)}
-    end.
+    end;
+generate_ocaml_pattern({pattern_map}, _TAS) ->
+    %% todo: implement map pattern matching
+    {mknil2}.
+
+
 
 
 
@@ -207,13 +214,15 @@ compile_body(#c_letrec{defs = _Defs, body = _Body}, _TAS) ->
     %% todo: it looks as if defs is a list var-fun pairs, and body is a normal.
     %% todo: for now, just return nil
     %% used in list_comprehension
-    {literal,[]};
+    {mknil};
 compile_body(#c_tuple{es = Es}, TAS) ->
     {'mktuple', compile_bodies(Es, TAS)};
 compile_body(#c_cons{hd = Hd, tl = Tl}, TAS) ->
     {'mkcons', compile_body(Hd, TAS), compile_body(Tl, TAS)};
 compile_body(#c_literal{val = []}, _TAS) ->
     {mknil};
+compile_body(#c_literal{val = String}, _TAS) when is_list(String) ->
+    {literal_string, String};
 compile_body(#c_literal{val = Literal}, _TAS) ->
     %% todo: when are we going to fix conversion to ocaml casing?
     {literal, Literal};
@@ -243,7 +252,7 @@ compile_body(#c_try{body = Body}, TAS) ->
     compile_body(Body, TAS);
 compile_body(#c_seq{}, _TAS) ->
     %%% todo: handle list comprehension, for now, return empty list
-    {literal,[]}.
+    {mknil}.
 
 compile_map_arg(#c_map_pair{op = #c_literal{val = Op}, key = Key, val = Val}, TAS) ->
     Key2 = compile_body(Key, TAS),
@@ -317,9 +326,9 @@ compile_pattern(#c_map    {arg = _Arg, es = _ES}, _TAS) ->
     %% es :: [#c_map_pair()]
     %% todo: handle c_map_pair
     {pattern_map};
-compile_pattern(#c_alias  {var = Var, pat = Pat}, TAS) ->
+compile_pattern(#c_alias  {var = #c_var{name = Name}, pat = Pat}, TAS) ->
     %%% todo: MFA is alias in "warn_spec_missing_fun({M, F, A} = MFA, Contracts) ->"
-    {alias, Var, compile_pattern(Pat, TAS)}.
+    {alias, {variable, Name}, compile_pattern(Pat, TAS)}.
 
 
 

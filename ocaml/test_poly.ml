@@ -23,3 +23,7 @@ let i (x:([`A | `B of int])) = x
 
 (* how should I inline this? maybe impossible, maybe a need a type name
 let j (x:(A | B of int)) = x *)
+
+let astest ((`Foo(a,c)) as top) = c, top
+
+let astest2 ((a,b) as c) = c

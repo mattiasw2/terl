@@ -49,7 +49,7 @@ generate_ocaml({'fun_anon', Args, Def}, TAS) ->
 generate_ocaml({match, {case_values, Match}, Matches}, TAS) ->
     %% todo: matches
     Matches2 = generate_matches(Matches, TAS),
-    {match2, fix_variables(Match), Matches2};
+    {match2, generate_ocamls(Match,TAS), Matches2};
 generate_ocaml({'let', {'=', Vars, Arg}, Body}, TAS) ->
     {let2, {'=2', fix_variables(Vars), generate_ocaml(Arg, TAS)}, generate_ocaml(Body, TAS)};
 generate_ocaml({mktuple, Args}, TAS) ->
@@ -64,12 +64,17 @@ generate_ocaml({variable,_Name}=V, _TAS) -> fix_variable(V);
 generate_ocaml({literal,Atom}=_V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(Atom);
 generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) -> Number * 1.0;
 generate_ocaml({literal_string, String}, _TAS) -> {literal_string2, String};
+generate_ocaml({literal_map, Map}, _TAS) -> {literal_map2, Map};
 generate_ocaml(true, _) -> true;
 generate_ocaml({call, Fun, Args}, TAS) -> make_call(Fun, Args, TAS);
 generate_ocaml({apply, Op, Args}, TAS) ->
     {'apply2',
      generate_ocaml(Op, TAS),
-     generate_ocamls(Args, TAS)}.
+     generate_ocamls(Args, TAS)};
+generate_ocaml({map, Map, Changes}, _TAS) ->
+    %% todo, call generate for args
+    {map2, Map, Changes}.
+
 %% generate_ocaml(Keep, _TAS) ->
 %%     {todo, Keep}.
 
@@ -223,6 +228,8 @@ compile_body(#c_literal{val = []}, _TAS) ->
     {mknil};
 compile_body(#c_literal{val = String}, _TAS) when is_list(String) ->
     {literal_string, String};
+compile_body(#c_literal{val = Map}, _TAS) when is_map(Map) ->
+    {literal_map, Map};
 compile_body(#c_literal{val = Literal}, _TAS) ->
     %% todo: when are we going to fix conversion to ocaml casing?
     {literal, Literal};

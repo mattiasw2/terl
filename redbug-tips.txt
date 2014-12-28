@@ -1,0 +1,3 @@
+Show last only, and trace more than one match
+
+spawn(fun() -> io:format(">>> ~p",[lists:last(element(2,redbug:start(["te_experiments:print","te_experiments:generate_ocaml"],[{blocking,true},{msgs,1000}])))]) end).

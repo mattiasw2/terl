@@ -47,25 +47,89 @@ print(S, {letrec2, Head, Body}) ->
 print(S, {head2, Name, Args, ReturnType}) ->
     io:put_chars(S, Name),
     %% make tuple of args
-    prints(S,Args,"(", ",", ")"),
+    print_strings(S,Args,"(", ",", ")"),
     case ReturnType of
         [] -> ok;
         Chars -> io:put_chars(S," : "),
                  io:put_chars(S, Chars)
     end,
     io:put_chars(S," = ");
+print(S, {let2, {'=2',Var,Expr}, Body}) ->
+    io:put_chars(S, "let "),
+    io:put_chars(S, Var),
+    io:put_chars(S, " = "),
+    io:nl(S),
+    print(S, Expr),
+    io:nl(S),
+    io:put_chars(S, " in "),
+    io:nl(S),
+    print(S, Body);
+print(S, {polymorphic_variant2, Name, Args}) ->
+    io:put_chars(S,Name),
+    print_patterns(S,Args),
+    io:nl(S);
+print(S, {call_module2, M, F, Args}) ->
+    io:put_chars(S,M),
+    io:put_chars(S,"."),
+    io:put_chars(S,F),
+    print_strings(S,Args,"(",",",")");
+print(S, {match2, Match, Matches}) ->
+    io:put_chars(S,"(match "),
+    print_strings(S,Match,"(",",",")"),
+    io:put_chars(S," with"),
+    io:nl(S),
+    lists:foreach(fun(M) -> print_match(S,M) end, Matches),
+    io:put_chars(S,")"),
+    io:nl(S);
+print(S, Skip) when is_tuple(Skip) ->
+    io:format(S, "Skip ~p~n", [element(1,Skip)]);
 print(S, Skip) ->
-    io:format(S, "Skip ~p~n", [element(1,Skip)]).
-
+    io:format(S, "Skip ~p~n", [Skip]).
 
 prints(S, Strings, Begin, Delimeter, End) ->
+    printsF(fun print/2, S, Strings, Begin, Delimeter, End).
+
+print_strings(S, Strings, Begin, Delimeter, End) ->
+    printsF(fun io:put_chars/2, S, Strings, Begin, Delimeter, End).
+
+print_patterns(S, Pattern) ->
+    printsF(fun print_pattern/2, S, Pattern, "(",",",")").
+
+print_pattern(S,{polymorphic_variant2, Name, Args}) ->
+    io:put_chars(S, Name),
+    print_patterns(S, Args);
+print_pattern(S, String) when is_list(String) ->
+    io:put_chars(S, String).
+
+
+%%% generic printer of lists with delimiter and begin and end
+printsF(F, S, Strings, Begin, Delimeter, End) ->
     io:put_chars(S, Begin),
-    prints(S, Strings, Delimeter),
+    printsF(F, S, Strings, Delimeter),
     io:put_chars(S, End).
 
-prints(_, [], _            ) -> ok;
-prints(S, [H], _           ) -> io:put_chars(S,H);
-prints(S, [H|T], Delimeter ) -> io:put_chars(S,H), io:put_chars(S,Delimeter), prints(S,T,Delimeter).
+printsF(_, _, [], _            ) -> ok;
+printsF(F, S, [H], _           ) -> F(S,H), ok;
+printsF(F, S, [H|T], Delimeter ) -> F(S,H), io:put_chars(S,Delimeter), printsF(F, S,T,Delimeter).
+
+
+
+
+%%% I need a special printer for Pattern, since stuff is not wrapped with {literal2 ...} and similar
+print_match(S,{'match|2', Pattern, When, Body}) ->
+    io:nl(S),
+    io:put_chars(S,"| "),
+    %% todo: shouldn't be list of pattern
+    print_patterns(S,Pattern),
+    case When of
+        true -> ok;
+        _    -> io:put_chars(S, " when "), prints(S,[When],"(",",",")")
+    end,
+    io:put_chars(S," -> "),
+    print(S, Body),
+    io:nl(S).
+
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -97,7 +161,7 @@ generate_ocaml({mkcons, H, T}, TAS) ->
 generate_ocaml({mknil}, _TAS) -> {mknil2};
 generate_ocaml({variable,_Name}=V, _TAS) -> fix_variable(V);
 generate_ocaml({literal,Atom}=_V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(Atom);
-generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) -> Number * 1.0;
+generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) ->  float_to_list(Number * 1.0);
 generate_ocaml({literal_string, String}, _TAS) -> {literal_string2, String};
 generate_ocaml({literal_map, Map}, _TAS) -> {literal_map2, Map};
 generate_ocaml(true, _) -> true;
@@ -197,7 +261,7 @@ function_return_type({'/',_F,_N}=_Fun, _TAS) ->
 make_call({'/', M, F, N}, Args, TAS) ->
     N = length(Args),
     Fun = {'/', F, N},
-    {call_module2, M, fix_function_name(Fun), generate_ocamls(Args, TAS)};
+    {call_module2, make_first_upper(M), fix_function_name(Fun), generate_ocamls(Args, TAS)};
 make_call({'/', _F, N}=Fun, Args, TAS) ->
     N = length(Args),
     {call2, fix_function_name(Fun), generate_ocamls(Args, TAS)}.
@@ -209,17 +273,17 @@ get_functions(Defs, TAS) ->
     lists:map(fun(Def) -> get_function(Def, TAS) end, Defs).
 
 get_function({#c_var{name = {F, N}}, #c_fun{vars = Vars, body = Body}}, TAS) ->
-    Fun = {'/', F, N},
-    Args = lists:map(fun(Arg) -> get_arg(Arg, TAS) end, Vars),
-    Def = compile_body(Body, TAS),
+    Fun    = {'/', F, N},
+    Args   = lists:map(fun(Arg) -> get_arg(Arg, TAS) end, Vars),
+    Def    = compile_body(Body, TAS),
     LetRec = {letrec, Fun, Args, Def},
     optimize_letrec(LetRec).
 
 %%% #c_fun are also used for anonymous functions
 %%% todo: add support for named anonymous functions
 get_anon_function(#c_fun{vars = Vars, body = Body}, TAS) ->
-    Args = lists:map(fun(Arg) -> get_arg(Arg, TAS) end, Vars),
-    Def = compile_body(Body, TAS),
+    Args   = lists:map(fun(Arg) -> get_arg(Arg, TAS) end, Vars),
+    Def    = compile_body(Body, TAS),
     LetRec = {'fun_anon', Args, Def},
     optimize_letrec(LetRec).
 
@@ -350,12 +414,27 @@ get_case_values(V,                     TAS) -> {case_values, [compile_body(V, TA
 %%% compile the clauses, skip the match_fail, since we want the ocaml compiler to complain
 %%% if pattern not complete.
 compile_clauses([], _TAS) -> [];
-compile_clauses([#c_clause{anno = [compiler_generated]}|Cs], TAS) -> compile_clauses(Cs, TAS);
-compile_clauses([#c_clause{anno = [_,_,compiler_generated]}|Cs], TAS) -> compile_clauses(Cs, TAS);
-compile_clauses([#c_clause{pats = Pats, guard = Guard, body = Body}|Cs], TAS) ->
-    [{'match|', compile_patterns(Pats, TAS), compile_when(Guard, TAS), compile_body(Body, TAS)}
-     |compile_clauses(Cs, TAS)].
+compile_clauses([#c_clause{anno = Anno,
+                           guard = #c_literal{val=true} = Guard,
+                           body = Body,
+                           pats = Pats
+                          }=C|Cs], TAS) ->
+    %% Body can be c_case
+    %%io:format("~n~p",[Anno]),
+    case lists:member(compiler_generated,Anno) and skip_clause_with_body(Body) of
+        true  ->
+            %% io:format("~nSkipping clause 1: ~p", [C]),
+            compile_clauses(Cs, TAS);
+        false ->
+            %% io:format("~nKeep clause with body 1: ~p", [Body]),
+            [{'match|', compile_patterns(Pats, TAS), compile_when(Guard, TAS), compile_body(Body, TAS)}
+             |compile_clauses(Cs, TAS)]
+    end.
 
+skip_clause_with_body(#c_primop{name=#c_literal{val=match_fail}}) -> true;
+skip_clause_with_body(#c_call{module=#c_literal{val=erlang}, name=#c_literal{val=error},
+                              args=[#c_tuple{es=[#c_literal{val=badrecord}|_]}|_]}) -> true;
+skip_clause_with_body(_) -> false.
 
 compile_patterns(Pats, TAS) ->
     lists:map(fun(Pat) -> compile_pattern(Pat, TAS) end, Pats).
@@ -375,15 +454,15 @@ compile_pattern(#c_alias  {var = #c_var{name = Name}, pat = Pat}, TAS) ->
 
 
 
-compile_when(#c_literal{val = true}, _TAS) -> true;
-compile_when(#c_literal{val = Guard}, TAS) -> compile_body(Guard, TAS);
-compile_when(#c_call{} = Body,        TAS) -> compile_body(Body, TAS).
+compile_when(#c_literal {val = true}, _TAS) -> true;
+compile_when(#c_literal {val = Guard}, TAS) -> compile_body(Guard, TAS);
+compile_when(#c_call    {} = Body,     TAS) -> compile_body(Body, TAS).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% get specs and types without the c_literal stuff
 get_spec_and_types(Attrs) ->
-    L = lists:map(fun(Attr) -> get_spec_or_type(Attr) end, Attrs),
+    L  = lists:map(fun(Attr) -> get_spec_or_type(Attr) end, Attrs),
     L2 = lists:map(fun to_ocaml/1, L),
     L2.
 
@@ -436,9 +515,9 @@ generate_type({type, _Row, Primitive, []}, _Constraints) ->
     Primitive;
 generate_type({type,_Row1,bounded_fun,[{type,_Row2,'fun',[From, To]}, Constraints]}, TopConstraints) ->
     %% I do not plan for more than one bounded_fun expression for now
-    [] = TopConstraints,
+    []       = TopConstraints,
     FromType = generate_type(From, Constraints),
-    ToType = generate_type(To, Constraints),
+    ToType   = generate_type(To, Constraints),
     {'->',FromType, ToType};
 generate_type({type,_Row,union,Types}, Constraints) ->
     {'|', lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};

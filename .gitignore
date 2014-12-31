@@ -1,7 +1,6 @@
 /ocaml/a.out
 /ocaml/*.cmi
 /ocaml/*.cmo
-/samples/*.core
 /samples/*.beam
 /TAGS
 /src/*.core

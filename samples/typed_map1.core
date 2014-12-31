@@ -1,0 +1,111 @@
+module 'typed_map1' ['access1'/1,
+		     'all1'/0,
+		     'change1'/1,
+		     'create1'/0,
+		     'dialyzer_complain1'/1,
+		     'module_info'/0,
+		     'module_info'/1,
+		     'upsert1'/1]
+    attributes [%% Line 5
+		'type' =
+		    %% Line 5
+		    [{'map_traditional_t',{'type',5,'map',[{'type',5,'map_field_assoc',{'type',5,'string',[]},{'type',5,'integer',[]}}]},[]}],
+		%% Line 6
+		'type' =
+		    %% Line 6
+		    [{'map_unsupported_t',{'type',6,'map',[{'type',6,'map_field_assoc',{'type',6,'string',[]},{'type',6,'integer',[]}}|[{'type',6,'map_field_assoc',{'type',6,'float',[]},{'type',6,'string',[]}}]]},[]}],
+		%% Line 7
+		'type' =
+		    %% Line 7
+		    [{'map_record_like_t',{'type',7,'map',[{'type',7,'map_field_assoc',{'atom',7,'age'},{'type',7,'integer',[]}}|[{'type',7,'map_field_assoc',{'atom',7,'name'},{'type',7,'string',[]}}]]},[]}],
+		%% Line 9
+		'spec' =
+		    %% Line 9
+		    [{{'create1',0},[{'type',9,'fun',[{'type',9,'product',[]}|[{'type',9,'map_record_like_t',[]}]]}]}],
+		%% Line 13
+		'spec' =
+		    %% Line 13
+		    [{{'change1',1},[{'type',13,'fun',[{'type',13,'product',[{'type',13,'map_record_like_t',[]}]}|[{'type',13,'map_record_like_t',[]}]]}]}],
+		%% Line 17
+		'spec' =
+		    %% Line 17
+		    [{{'upsert1',1},[{'type',17,'fun',[{'type',17,'product',[{'type',17,'map_record_like_t',[]}]}|[{'type',17,'map_record_like_t',[]}]]}]}],
+		%% Line 21
+		'spec' =
+		    %% Line 21
+		    [{{'access1',1},[{'type',21,'fun',[{'type',21,'product',[{'type',21,'map_record_like_t',[]}]}|[{'type',21,'integer',[]}]]}]}],
+		%% Line 38
+		'spec' =
+		    %% Line 38
+		    [{{'dialyzer_complain1',1},[{'type',38,'fun',[{'type',38,'product',[{'type',38,'map_record_like_t',[]}]}|[{'type',38,'integer',[]}]]}]}],
+		%% Line 42
+		'spec' =
+		    %% Line 42
+		    [{{'all1',0},[{'type',42,'fun',[{'type',42,'product',[]}|[{'type',42,'integer',[]}]]}]}]]
+'create1'/0 =
+    %% Line 10
+    fun () ->
+	%% Line 11
+	~{::<10,'age'>}~
+'change1'/1 =
+    %% Line 14
+    fun (_cor0) ->
+	%% Line 15
+	~{~<'age',20>|_cor0}~
+'upsert1'/1 =
+    %% Line 18
+    fun (_cor0) ->
+	%% Line 19
+	~{::<'name',[109|[97|[116|[116|[105|[97|[115]]]]]]]>|_cor0}~
+'access1'/1 =
+    %% Line 22
+    fun (_cor0) ->
+	case _cor0 of
+	  <Person = ~{~<'age',Age>}~> when 'true' ->
+	      Age
+	  ( <_cor1> when 'true' ->
+		( primop 'match_fail'
+		      ({'function_clause',_cor1})
+		  -| [{'function_name',{'access1',1}}] )
+	    -| ['compiler_generated'] )
+	end
+'dialyzer_complain1'/1 =
+    %% Line 39
+    fun (_cor0) ->
+	case _cor0 of
+	  <Person = ~{~<'tage',Age>}~> when 'true' ->
+	      %% Line 40
+	      Age
+	  ( <_cor1> when 'true' ->
+		( primop 'match_fail'
+		      ({'function_clause',_cor1})
+		  -| [{'function_name',{'dialyzer_complain1',1}}] )
+	    -| ['compiler_generated'] )
+	end
+'all1'/0 =
+    %% Line 43
+    fun () ->
+	let <M> =
+	    %% Line 44
+	    apply 'create1'/0
+		()
+	in  let <M2> =
+		%% Line 45
+		apply 'change1'/1
+		    (M)
+	    in  let <M3> =
+		    %% Line 46
+		    apply 'upsert1'/1
+			(M2)
+		in  %% Line 47
+		    apply 'access1'/1
+			(M3)
+'module_info'/0 =
+    fun () ->
+	call 'erlang':'get_module_info'
+	    ('typed_map1')
+'module_info'/1 =
+    fun (_cor0) ->
+	call 'erlang':'get_module_info'
+	    ('typed_map1', _cor0)
+end

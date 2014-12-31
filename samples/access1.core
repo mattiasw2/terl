@@ -1,0 +1,129 @@
+module 'access1' ['access1'/1,
+		  'build1'/1,
+		  'build1tuple'/1,
+		  'build2a'/2,
+		  'build2b'/2,
+		  'get1'/2,
+		  'get2'/2,
+		  'module_info'/0,
+		  'module_info'/1,
+		  'newborn'/1]
+    attributes [%% Line 1
+		'type' =
+		    %% Line 1
+		    [{{'record','contact'},[{'typed_record_field',{'record_field',2,{'atom',2,'name'},{'string',2,[110|[97|[109|[101|[95|[100|[101|[102|[97|[117|[108|[116]]]]]]]]]]]]}},{'type',2,'string',[]}}|[{'typed_record_field',{'record_field',3,{'atom',3,'age'},{'op',3,'-',{'integer',3,1}}},{'type',3,'integer',[]}}]],[]}],
+		%% Line 6
+		'type' =
+		    %% Line 6
+		    [{{'record','contacts'},[{'typed_record_field',{'record_field',7,{'atom',7,'company'},{'string',7,[99|[111|[109|[112|[97|[110|[121|[95|[100|[101|[102|[97|[117|[108|[116]]]]]]]]]]]]]]]}},{'type',7,'string',[]}}|[{'typed_record_field',{'record_field',8,{'atom',8,'contacts'},{'nil',8}},{'type',8,'list',[{'type',8,'record',[{'atom',8,'contact'}]}]}}]],[]}],
+		%% Line 12
+		'type' =
+		    %% Line 12
+		    [{{'record','device'},[{'typed_record_field',{'record_field',13,{'atom',13,'name'},{'string',13,[110|[97|[109|[101|[95|[100|[101|[102|[97|[117|[108|[116]]]]]]]]]]]]}},{'type',13,'string',[]}}|[{'typed_record_field',{'record_field',14,{'atom',14,'ip_address'},{'string',14,[48|[46|[48|[46|[48|[46|[48]]]]]]]}},{'type',14,'string',[]}}]],[]}],
+		%% Line 17
+		'type' =
+		    %% Line 17
+		    [{'mail',{'type',17,'union',[{'type',17,'record',[{'atom',17,'contact'}]}|[{'type',17,'record',[{'atom',17,'device'}]}]]},[]}],
+		%% Line 10
+		'spec' =
+		    %% Line 10
+		    [{{'build1',1},[{'type',10,'fun',[{'type',10,'product',[{'type',10,'string',[]}]}|[{'type',10,'record',[{'atom',10,'contact'}]}]]}]}],
+		%% Line 14
+		'spec' =
+		    %% Line 14
+		    [{{'build2a',2},[{'type',14,'fun',[{'type',14,'product',[{'type',14,'string',[]}|[{'type',14,'integer',[]}]]}|[{'type',14,'record',[{'atom',14,'contact'}]}]]}]}],
+		%% Line 18
+		'spec' =
+		    %% Line 18
+		    [{{'build2b',2},[{'type',18,'bounded_fun',[{'type',18,'fun',[{'type',18,'product',[{'var',18,'A'}|[{'var',18,'B'}]]}|[{'type',18,'record',[{'atom',18,'contact'}]}]]}|[[{'type',19,'constraint',[{'atom',19,'is_subtype'}|[[{'var',19,'A'}|[{'type',19,'string',[]}]]]]}|[{'type',20,'constraint',[{'atom',20,'is_subtype'}|[[{'var',20,'B'}|[{'type',20,'integer',[]}]]]]}]]]]}]}],
+		%% Line 31
+		'spec' =
+		    %% Line 31
+		    [{{'get1',2},[{'type',31,'fun',[{'type',31,'product',[{'type',31,'union',[{'atom',31,'age'}|[{'atom',31,'name'}]]}|[{'type',31,'record',[{'atom',31,'contact'}]}]]}|[{'type',31,'union',[{'type',31,'tuple',[{'atom',31,'age'}|[{'type',31,'integer',[]}]]}|[{'type',31,'tuple',[{'atom',31,'name'}|[{'type',31,'string',[]}]]}]]}]]}]}],
+		%% Line 36
+		'spec' =
+		    %% Line 36
+		    [{{'get2',2},[{'type',36,'fun',[{'type',36,'product',[{'paren_type',36,[{'type',36,'union',[{'atom',36,'age'}|[{'atom',36,'name'}]]}]}|[{'type',36,'record',[{'atom',36,'contact'}]}]]}|[{'type',36,'union',[{'type',36,'tuple',[{'atom',36,'age'}|[{'type',36,'integer',[]}]]}|[{'type',36,'tuple',[{'atom',36,'name'}|[{'type',36,'string',[]}]]}]]}]]}]}]]
+'build1tuple'/1 =
+    %% Line 7
+    fun (_cor0) ->
+	%% Line 8
+	{'contact2',_cor0,-1}
+'build1'/1 =
+    %% Line 11
+    fun (_cor0) ->
+	%% Line 12
+	{'contact',_cor0,-1}
+'build2a'/2 =
+    %% Line 15
+    fun (_cor1,_cor0) ->
+	%% Line 16
+	{'contact',_cor1,_cor0}
+'build2b'/2 =
+    %% Line 21
+    fun (_cor1,_cor0) ->
+	%% Line 22
+	{'contact',_cor1,_cor0}
+'newborn'/1 =
+    %% Line 24
+    fun (_cor0) ->
+	%% Line 25
+	{'contact',_cor0,0}
+'access1'/1 =
+    %% Line 28
+    fun (_cor0) ->
+	%% Line 29
+	( case _cor0 of
+	    ( <( {'contact',_rec0,_cor3}
+		 -| ['compiler_generated'] )> when 'true' ->
+		  _rec0
+	      -| ['compiler_generated'] )
+	    ( <_cor4> when 'true' ->
+		  ( call ( 'erlang'
+			   -| ['compiler_generated'] ):( 'error'
+							 -| ['compiler_generated'] )
+			(( {'badrecord','contact'}
+			   -| ['compiler_generated'] ))
+		    -| ['compiler_generated'] )
+	      -| ['compiler_generated'] )
+	  end
+	  -| ['compiler_generated'] )
+'get1'/2 =
+    %% Line 32
+    fun (_cor1,_cor0) ->
+	case <_cor1,_cor0> of
+	  <'age',{'contact',_cor4,Age}> when 'true' ->
+	      {'age',Age}
+	  %% Line 33
+	  <'name',{'contact',Name,_cor5}> when 'true' ->
+	      {'name',Name}
+	  ( <_cor3,_cor2> when 'true' ->
+		( primop 'match_fail'
+		      ({'function_clause',_cor3,_cor2})
+		  -| [{'function_name',{'get1',2}}] )
+	    -| ['compiler_generated'] )
+	end
+'get2'/2 =
+    %% Line 37
+    fun (_cor1,_cor0) ->
+	case <_cor1,_cor0> of
+	  <'age',{'contact',_cor4,Age}> when 'true' ->
+	      {'age',Age}
+	  %% Line 38
+	  <'name',{'contact',Name,_cor5}> when 'true' ->
+	      {'name',Name}
+	  ( <_cor3,_cor2> when 'true' ->
+		( primop 'match_fail'
+		      ({'function_clause',_cor3,_cor2})
+		  -| [{'function_name',{'get2',2}}] )
+	    -| ['compiler_generated'] )
+	end
+'module_info'/0 =
+    fun () ->
+	call 'erlang':'get_module_info'
+	    ('access1')
+'module_info'/1 =
+    fun (_cor0) ->
+	call 'erlang':'get_module_info'
+	    ('access1', _cor0)
+end

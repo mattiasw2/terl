@@ -1,0 +1,63 @@
+module 'map1' ['access1'/1,
+	       'all1'/0,
+	       'change1'/1,
+	       'create1'/0,
+	       'module_info'/0,
+	       'module_info'/1,
+	       'upsert1'/1]
+    attributes []
+'create1'/0 =
+    %% Line 5
+    fun () ->
+	%% Line 6
+	~{::<10,'age'>}~
+'change1'/1 =
+    %% Line 8
+    fun (_cor0) ->
+	%% Line 9
+	~{~<'age',20>|_cor0}~
+'upsert1'/1 =
+    %% Line 11
+    fun (_cor0) ->
+	%% Line 12
+	~{::<'name',[109|[97|[116|[116|[105|[97|[115]]]]]]]>|_cor0}~
+'access1'/1 =
+    %% Line 14
+    fun (_cor0) ->
+	case _cor0 of
+	  <Person = ~{~<'age',Age>}~> when 'true' ->
+	      %% Line 15
+	      Age
+	  ( <_cor1> when 'true' ->
+		( primop 'match_fail'
+		      ({'function_clause',_cor1})
+		  -| [{'function_name',{'access1',1}}] )
+	    -| ['compiler_generated'] )
+	end
+'all1'/0 =
+    %% Line 17
+    fun () ->
+	let <M> =
+	    %% Line 18
+	    apply 'create1'/0
+		()
+	in  let <M2> =
+		%% Line 19
+		apply 'change1'/1
+		    (M)
+	    in  let <M3> =
+		    %% Line 20
+		    apply 'upsert1'/1
+			(M2)
+		in  %% Line 21
+		    apply 'access1'/1
+			(M3)
+'module_info'/0 =
+    fun () ->
+	call 'erlang':'get_module_info'
+	    ('map1')
+'module_info'/1 =
+    fun (_cor0) ->
+	call 'erlang':'get_module_info'
+	    ('map1', _cor0)
+end

@@ -1,0 +1,81 @@
+module 'poly1' ['applyer'/2,
+		'list1'/1,
+		'map'/2,
+		'module_info'/0,
+		'module_info'/1,
+		'nil'/0,
+		'type1'/0]
+    attributes [%% Line 12
+		'spec' =
+		    %% Line 12
+		    [{{'applyer',2},[{'type',12,'bounded_fun',[{'type',12,'fun',[{'type',12,'product',[{'var',12,'Fun'}|[{'var',12,'A'}]]}|[{'var',12,'B'}]]}|[[{'type',13,'constraint',[{'atom',13,'is_subtype'}|[[{'var',13,'Fun'}|[{'type',13,'fun',[{'type',13,'product',[{'var',13,'A'}]}|[{'var',13,'B'}]]}]]]]}]]]}]}],
+		%% Line 25
+		'spec' =
+		    %% Line 25
+		    [{{'map',2},[{'type',25,'bounded_fun',[{'type',25,'fun',[{'type',25,'product',[{'var',25,'Fun'}|[{'var',25,'List1'}]]}|[{'var',25,'List2'}]]}|[[{'type',26,'constraint',[{'atom',26,'is_subtype'}|[[{'var',26,'Fun'}|[{'type',26,'fun',[{'type',26,'product',[{'var',26,'A'}]}|[{'var',26,'B'}]]}]]]]}|[{'type',27,'constraint',[{'atom',27,'is_subtype'}|[[{'var',27,'List1'}|[{'type',27,'list',[{'var',27,'A'}]}]]]]}|[{'type',28,'constraint',[{'atom',28,'is_subtype'}|[[{'var',28,'List2'}|[{'type',28,'list',[{'var',28,'B'}]}]]]]}]]]]]}]}],
+		%% Line 34
+		'spec' =
+		    %% Line 34
+		    [{{'type1',0},[{'type',34,'fun',[{'type',34,'product',[]}|[{'type',34,'nonempty_list',[{'type',34,'tuple',[{'type',34,'tuple',[{'atom',34,'map'}|[{'integer',34,2}]]}|[{'type',34,'nonempty_list',[{'type',34,'tuple',[{'var',34,'_'}|[{'var',34,'_'}|[{'var',34,'_'}|[{'var',34,'_'}]]]]}]}]]}]}]]}]}]]
+'nil'/0 =
+    %% Line 7
+    fun () ->
+	[]
+'list1'/1 =
+    %% Line 9
+    fun (_cor0) ->
+	let <_cor3> =
+	    %% Line 10
+	    ( fun (_cor1) ->
+		  _cor1
+	      -| [{'id',{0,0,'-list1/1-fun-0-'}}] )
+	in  %% Line 10
+	    call 'lists':'map'
+		(_cor3, _cor0)
+'applyer'/2 =
+    %% Line 14
+    fun (_cor1,_cor0) ->
+	%% Line 15
+	apply _cor1
+	    (_cor0)
+'map'/2 =
+    %% Line 30
+    fun (_cor1,_cor0) ->
+	case <_cor1,_cor0> of
+	  <F,[H|T]> when 'true' ->
+	      let <_cor2> =
+		  %% Line 31
+		  apply F
+		      (H)
+	      in  let <_cor3> =
+		      %% Line 31
+		      apply 'map'/2
+			  (F, T)
+		  in  %% Line 31
+		      [_cor2|_cor3]
+	  %% Line 32
+	  <F,[]>
+	      when call 'erlang':'is_function'
+		    (F,
+		     1) ->
+	      []
+	  ( <_cor5,_cor4> when 'true' ->
+		( primop 'match_fail'
+		      ({'function_clause',_cor5,_cor4})
+		  -| [{'function_name',{'map',2}}] )
+	    -| ['compiler_generated'] )
+	end
+'type1'/0 =
+    %% Line 35
+    fun () ->
+	%% Line 36
+	[{{'map',2},[{'type',8,'bounded_fun',[{'type',8,'fun',[{'type',8,'product',[{'var',8,'Fun'}|[{'var',8,'List1'}]]}|[{'var',8,'List2'}]]}|[[{'type',9,'constraint',[{'atom',9,'is_subtype'}|[[{'var',9,'Fun'}|[{'type',9,'fun',[{'type',9,'product',[{'var',9,'A'}]}|[{'var',9,'B'}]]}]]]]}|[{'type',10,'constraint',[{'atom',10,'is_subtype'}|[[{'var',10,'List1'}|[{'type',10,'list',[{'var',10,'A'}]}]]]]}|[{'type',11,'constraint',[{'atom',11,'is_subtype'}|[[{'var',11,'List2'}|[{'type',11,'list',[{'var',11,'B'}]}]]]]}|[{'type',12,'constraint',[{'atom',12,'is_subtype'}|[[{'var',12,'A'}|[{'type',12,'term',[]}]]]]}|[{'type',13,'constraint',[{'atom',13,'is_subtype'}|[[{'var',13,'B'}|[{'type',13,'term',[]}]]]]}]]]]]]]}]}]
+'module_info'/0 =
+    fun () ->
+	call 'erlang':'get_module_info'
+	    ('poly1')
+'module_info'/1 =
+    fun (_cor0) ->
+	call 'erlang':'get_module_info'
+	    ('poly1', _cor0)
+end

@@ -85,7 +85,7 @@ print(S, {call_module2, M, F, Args}) ->
     prints(S,Args,"(",",",")");
 print(S, {call2, F, Args}) ->
     io:put_chars(S,F),
-    print_strings(S,Args,"(",",",")");
+    prints(S,Args,"(",",",")");
 print(S, {'fun_anon2', OcamlHead, OcamlBody}) ->
     %% (fun a -> a + 1)
     io:put_chars(S,"(fun "),
@@ -99,7 +99,8 @@ print(S, {'apply2', Op, Args}) ->
     printsF(fun print/2, S, Args, ")(",",","))");
 print(S, {match2, Match, Matches}) ->
     io:put_chars(S,"(match "),
-    print_strings(S,Match,"(",",",")"),
+    %% print_strings not ok, since might contain call.
+    prints(S,Match,"(",",",")"),
     io:put_chars(S," with"),
     io:nl(S),
     lists:foreach(fun(M) -> print_match(S,M) end, Matches),

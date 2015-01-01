@@ -33,7 +33,9 @@ t1(File) ->
     TypeAndSpecs = get_spec_and_types(Attrs),
     Funs = get_functions(Defs, TypeAndSpecs),
     Code=lists:map(fun(F) -> generate_ocaml(F, TypeAndSpecs) end, Funs),
-    lists:foreach(fun(C) -> print(standard_io, C) end, Code).
+    S = standard_io,
+    io:put_chars(S, "let rec dummy_999() = true "), io:nl(S),
+    lists:foreach(fun(C) -> print(S, C) end, Code).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -69,18 +71,32 @@ print(S, {polymorphic_variant2, Name, Args}) ->
     io:put_chars(S,Name),
     print_patterns(S,Args),
     io:nl(S);
+print(S, {mktuple2, Args}) ->
+    print_patterns(S,Args),
+    io:nl(S);
 print(S, {mknil2}) ->
     io:put_chars(S,"[]");
 print(S, {mkcons2,H,T}) ->
-    printsF(fun print/2, S, [H,T], "[","|","]");
+    printsF(fun print/2, S, [H,T], "("," :: ",")");
 print(S, {call_module2, M, F, Args}) ->
     io:put_chars(S,M),
     io:put_chars(S,"."),
     io:put_chars(S,F),
-    print_strings(S,Args,"(",",",")");
+    prints(S,Args,"(",",",")");
 print(S, {call2, F, Args}) ->
     io:put_chars(S,F),
     print_strings(S,Args,"(",",",")");
+print(S, {'fun_anon2', OcamlHead, OcamlBody}) ->
+    %% (fun a -> a + 1)
+    io:put_chars(S,"(fun "),
+    print_strings(S,OcamlHead,"(",",",")"),
+    io:put_chars(S," -> "),
+    print(S,OcamlBody),
+    io:put_chars(S,")");
+print(S, {'apply2', Op, Args}) ->
+    io:put_chars(S, "(("),
+    print(S, Op),
+    printsF(fun print/2, S, Args, ")(",",","))");
 print(S, {match2, Match, Matches}) ->
     io:put_chars(S,"(match "),
     print_strings(S,Match,"(",",",")"),
@@ -89,18 +105,23 @@ print(S, {match2, Match, Matches}) ->
     lists:foreach(fun(M) -> print_match(S,M) end, Matches),
     io:put_chars(S,")"),
     io:nl(S);
-print(S, {variable, Name}) ->
-    io:put_chars(S,Name);
+%% print(S, {variable, Name}) ->
+%%     io:put_chars(S,Name);
 print(S, {variable2, Name}) ->
     io:put_chars(S,Name);
-print(S, {literal, Name}) ->
-    io:put_chars(S,Name);
+%% print(S, {literal, Name}) ->
+%%     io:put_chars(S,Name);
 print(S, {literal2, Name}) ->
+    io:put_chars(S,Name);
+print(S, {literal_string2, Name}) ->
     io:put_chars(S,Name);
 print(S, {string, String}) ->
     io:put_chars(S,String);
 print(S, String) when is_list(String) ->
-    io:put_chars(S,String);
+    case String of
+        []    -> io:put_chars(S,"[]");          % for safety, since I should have these
+        [_|_] -> io:put_chars(S,String)
+    end;
 print(S, Skip) when is_tuple(Skip) ->
     io:format(S, "Skip#1 ~p~n", [element(1,Skip)]).
 %% print(S, Skip) ->
@@ -119,14 +140,21 @@ print_pattern(S,{alias2, Var, Pattern}) ->
     End = ") as " ++ Var ++ ")",
     printsF(fun print_pattern/2, S, [Pattern], "((",",",End);
 print_pattern(S,{mkcons2,H,T}) ->
-    printsF(fun print_pattern/2, S, [H,T], "[","|","]");
+    printsF(fun print_pattern/2, S, [H,T], "("," :: ",")");
 print_pattern(S,{mknil2}) ->
     io:put_chars(S,"[]");
 print_pattern(S,{polymorphic_variant2, Name, Args}) ->
     io:put_chars(S, Name),
     print_patterns(S, Args);
+print_pattern(S,{mktuple2, Args}) ->
+    print_patterns(S, Args);
 print_pattern(S, String) when is_list(String) ->
-    io:put_chars(S, String).
+    %% check why is this needed
+    io:put_chars(S, String);
+print_pattern(S, Float) when is_float(Float) ->
+    %% maybe this is a erlang string?
+    %% check why is this needed
+    io:put_chars(S, mochinum:digits(Float)).
 
 
 %%% generic printer of lists with delimiter and begin and end
@@ -194,7 +222,7 @@ generate_ocaml({mkcons, H, T}, TAS) ->
 generate_ocaml({mknil}, _TAS) -> {mknil2};
 generate_ocaml({variable,_Name}=V, _TAS) -> fix_variable(V);
 generate_ocaml({literal,Atom}=_V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(Atom);
-generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) ->  float_to_list(Number * 1.0);
+generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) ->  mochinum:digits(Number * 1.0);
 generate_ocaml({literal_string, String}, _TAS) -> {literal_string2, String};
 generate_ocaml({literal_map, Map}, _TAS) -> {literal_map2, Map};
 generate_ocaml(true, _) -> true;
@@ -258,6 +286,7 @@ generate_ocaml_pattern({pattern_map}, _TAS) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% make casing legal ok for ocaml
+%%% todo: wrap stuff below in {string, List} to do better matching above
 fix_function_name({'/',F,N}) -> atom_to_list(F) ++ "_" ++ integer_to_list(N).
 
 fix_variables(L) -> lists:map(fun fix_variable/1, L).
@@ -359,11 +388,12 @@ compile_body(#c_cons{hd = Hd, tl = Tl}, TAS) ->
     {'mkcons', compile_body(Hd, TAS), compile_body(Tl, TAS)};
 compile_body(#c_literal{val = []}, _TAS) ->
     {mknil};
-compile_body(#c_literal{val = String}, _TAS) when is_list(String) ->
+compile_body(#c_literal{val = String}, _TAS) when is_list(String) -> % (is_list(String) and String=/=[]) ->
     {literal_string, String};
 compile_body(#c_literal{val = Map}, _TAS) when is_map(Map) ->
     {literal_map, Map};
 compile_body(#c_literal{val = Literal}, _TAS) ->
+    true = not(is_list(Literal)),
     %% todo: when are we going to fix conversion to ocaml casing?
     {literal, Literal};
 compile_body(#c_var{name = Name}, _TAS) ->
@@ -478,6 +508,7 @@ compile_patterns(Pats, TAS) ->
     lists:map(fun(Pat) -> compile_pattern(Pat, TAS) end, Pats).
 
 compile_pattern(#c_cons   {hd = Hd, tl = Tl},   TAS) -> {pattern_cons, compile_pattern(Hd, TAS), compile_pattern(Tl, TAS)};
+compile_pattern(#c_literal{val = []},         _TAS) -> {pattern_nil};
 compile_pattern(#c_literal{val = Val},         _TAS) -> {pattern_literal, Val};
 compile_pattern(#c_tuple  {es = ES},            TAS) -> {pattern_tuple, compile_patterns(ES, TAS)};
 compile_pattern(#c_var    {name = Name},       _TAS) -> {pattern_var, Name};

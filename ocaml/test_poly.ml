@@ -27,3 +27,6 @@ let j (x:(A | B of int)) = x *)
 let astest ((`Foo(a,c)) as top) = c, top
 
 let astest2 ((a,b) as c) = c
+
+let foo (l:int list) : int list =
+  List.map (fun a -> a + 1) l

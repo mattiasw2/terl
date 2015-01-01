@@ -24,6 +24,7 @@
 %%% trying to understand the core
 -spec t1(string()) -> term().
 t1(File) ->
+    io:format("~n~p~n",[File]),
     {ok, Module} = dialyzer_utils:get_core_from_src(File),
     _Name = Module#c_module.name,
     _Exports = Module#c_module.exports,
@@ -68,9 +69,16 @@ print(S, {polymorphic_variant2, Name, Args}) ->
     io:put_chars(S,Name),
     print_patterns(S,Args),
     io:nl(S);
+print(S, {mknil2}) ->
+    io:put_chars(S,"[]");
+print(S, {mkcons2,H,T}) ->
+    printsF(fun print/2, S, [H,T], "[","|","]");
 print(S, {call_module2, M, F, Args}) ->
     io:put_chars(S,M),
     io:put_chars(S,"."),
+    io:put_chars(S,F),
+    print_strings(S,Args,"(",",",")");
+print(S, {call2, F, Args}) ->
     io:put_chars(S,F),
     print_strings(S,Args,"(",",",")");
 print(S, {match2, Match, Matches}) ->
@@ -83,6 +91,16 @@ print(S, {match2, Match, Matches}) ->
     io:nl(S);
 print(S, {variable, Name}) ->
     io:put_chars(S,Name);
+print(S, {variable2, Name}) ->
+    io:put_chars(S,Name);
+print(S, {literal, Name}) ->
+    io:put_chars(S,Name);
+print(S, {literal2, Name}) ->
+    io:put_chars(S,Name);
+print(S, {string, String}) ->
+    io:put_chars(S,String);
+print(S, String) when is_list(String) ->
+    io:put_chars(S,String);
 print(S, Skip) when is_tuple(Skip) ->
     io:format(S, "Skip#1 ~p~n", [element(1,Skip)]).
 %% print(S, Skip) ->
@@ -97,6 +115,13 @@ print_strings(S, Strings, Begin, Delimeter, End) ->
 print_patterns(S, Pattern) ->
     printsF(fun print_pattern/2, S, Pattern, "(",",",")").
 
+print_pattern(S,{alias2, Var, Pattern}) ->
+    End = ") as " ++ Var ++ ")",
+    printsF(fun print_pattern/2, S, [Pattern], "((",",",End);
+print_pattern(S,{mkcons2,H,T}) ->
+    printsF(fun print_pattern/2, S, [H,T], "[","|","]");
+print_pattern(S,{mknil2}) ->
+    io:put_chars(S,"[]");
 print_pattern(S,{polymorphic_variant2, Name, Args}) ->
     io:put_chars(S, Name),
     print_patterns(S, Args);
@@ -422,15 +447,17 @@ get_case_values(V,                     TAS) -> {case_values, [compile_body(V, TA
 %%% compile the clauses, skip the match_fail, since we want the ocaml compiler to complain
 %%% if pattern not complete.
 compile_clauses([], _TAS) -> [];
-compile_clauses([#c_case{}=C|Cs], TAS) -> erlang:error({c_case_not_expected, C});
+compile_clauses([#c_case{}=C|_], _TAS) -> erlang:error({c_case_not_expected, C});
 compile_clauses([#c_clause{anno = Anno,
-                           guard = #c_literal{val=true} = Guard,
+                           guard = Guard,
                            body = Body,
                            pats = Pats
-                          }=C|Cs], TAS) ->
+                          }|Cs], TAS) ->
     %% Body can be c_case
     %%io:format("~n~p",[Anno]),
-    case lists:member(compiler_generated,Anno) and skip_clause_with_body(Body) of
+    case lists:member(compiler_generated,Anno)
+        and is_true(Guard)
+        and skip_clause_with_body(Body) of
         true  ->
             %% io:format("~nSkipping clause 1: ~p", [C]),
             compile_clauses(Cs, TAS);
@@ -438,6 +465,9 @@ compile_clauses([#c_clause{anno = Anno,
             [{'match|', compile_patterns(Pats, TAS), compile_when(Guard, TAS), compile_body(Body, TAS)}
              |compile_clauses(Cs, TAS)]
     end.
+
+is_true(#c_literal{val=true}) -> true;
+is_true(_) -> false.
 
 skip_clause_with_body(#c_primop{name=#c_literal{val=match_fail}}) -> true;
 skip_clause_with_body(#c_call{module=#c_literal{val=erlang}, name=#c_literal{val=error},

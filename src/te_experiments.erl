@@ -81,10 +81,12 @@ print(S, {match2, Match, Matches}) ->
     lists:foreach(fun(M) -> print_match(S,M) end, Matches),
     io:put_chars(S,")"),
     io:nl(S);
+print(S, {variable, Name}) ->
+    io:put_chars(S,Name);
 print(S, Skip) when is_tuple(Skip) ->
-    io:format(S, "Skip ~p~n", [element(1,Skip)]);
-print(S, Skip) ->
-    io:format(S, "Skip ~p~n", [Skip]).
+    io:format(S, "Skip#1 ~p~n", [element(1,Skip)]).
+%% print(S, Skip) ->
+%%     io:format(S, "Skip#2 ~p~n~p~n", [Skip, erlang:get_stacktrace()]).
 
 prints(S, Strings, Begin, Delimeter, End) ->
     printsF(fun print/2, S, Strings, Begin, Delimeter, End).
@@ -126,7 +128,13 @@ print_match(S,{'match|2', Pattern, When, Body}) ->
         _    -> io:put_chars(S, " when "), prints(S,[When],"(",",",")")
     end,
     io:put_chars(S," -> "),
-    print(S, Body),
+    case is_tuple(Body) of
+        true  -> print(S, Body);
+        false ->
+            %% let us hope it is a variable, need for "-> rec0" in
+            %% access1_1(contact) = (match (contact) with | (`Contact(rec0,cor3)) -> rec0)
+            io:put_chars(Body)
+    end,
     io:nl(S).
 
 
@@ -414,6 +422,7 @@ get_case_values(V,                     TAS) -> {case_values, [compile_body(V, TA
 %%% compile the clauses, skip the match_fail, since we want the ocaml compiler to complain
 %%% if pattern not complete.
 compile_clauses([], _TAS) -> [];
+compile_clauses([#c_case{}=C|Cs], TAS) -> erlang:error({c_case_not_expected, C});
 compile_clauses([#c_clause{anno = Anno,
                            guard = #c_literal{val=true} = Guard,
                            body = Body,
@@ -426,7 +435,6 @@ compile_clauses([#c_clause{anno = Anno,
             %% io:format("~nSkipping clause 1: ~p", [C]),
             compile_clauses(Cs, TAS);
         false ->
-            %% io:format("~nKeep clause with body 1: ~p", [Body]),
             [{'match|', compile_patterns(Pats, TAS), compile_when(Guard, TAS), compile_body(Body, TAS)}
              |compile_clauses(Cs, TAS)]
     end.

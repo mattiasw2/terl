@@ -63,7 +63,6 @@ print(S, {let2, {'=2',Var,Expr}, Body}) ->
     io:put_chars(S, " = "),
     io:nl(S),
     print(S, Expr),
-    io:nl(S),
     io:put_chars(S, " in "),
     io:nl(S),
     print(S, Body);
@@ -91,6 +90,7 @@ print(S, {'fun_anon2', OcamlHead, OcamlBody}) ->
     io:put_chars(S,"(fun "),
     print_strings(S,OcamlHead,"(",",",")"),
     io:put_chars(S," -> "),
+    io:nl(S),
     print(S,OcamlBody),
     io:put_chars(S,")");
 print(S, {'apply2', Op, Args}) ->
@@ -182,6 +182,7 @@ print_match(S,{'match|2', Pattern, When, Body}) ->
         _    -> io:put_chars(S, " when "), prints(S,[When],"(",",",")")
     end,
     io:put_chars(S," -> "),
+    io:nl(S),
     case is_tuple(Body) of
         true  -> print(S, Body);
         false ->
@@ -427,9 +428,8 @@ compile_body(#c_apply{op = Op, args = Args} = A, TAS) ->
 compile_body(#c_try{body = Body}, TAS) ->
     %%% todo: handle try-catch for real
     compile_body(Body, TAS);
-compile_body(#c_seq{}, _TAS) ->
-    %%% todo: handle list comprehension, for now, return empty list
-    {mknil}.
+compile_body(#c_seq{arg=Arg, body=Body}, TAS) ->
+    {'let', {'=', {c_var,[],'_'}, compile_body(Arg, TAS)}, compile_body(Body, TAS)}.
 
 compile_map_arg(#c_map_pair{op = #c_literal{val = Op}, key = Key, val = Val}, TAS) ->
     Key2 = compile_body(Key, TAS),

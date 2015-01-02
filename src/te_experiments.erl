@@ -399,7 +399,13 @@ compile_body(#c_literal{val = Literal}, _TAS) ->
     {literal, Literal};
 compile_body(#c_var{name = Name}, _TAS) ->
     %% todo: when are we going to fix conversion to ocaml casing?
-    {variable, Name};
+    %% it can be a tuple like this  c_var{name={print,2}}
+    %% io:format("~n c_var{name=~p}", [Name]),
+    case Name of
+        {F,N}   -> {literal_string, fix_function_name({'/',F,N})};
+        {M,F,N} -> {literal_string, fix_function_name({'/',M,F,N})};
+        _       -> {variable, Name}
+    end;
 compile_body(#c_call{module = Module, name = Name, args = Args}, TAS) ->
     {'call', {'/', Module#c_literal.val, Name#c_literal.val, length(Args)}, compile_bodies(Args, TAS)};
 compile_body(#c_apply{op = Op, args = Args} = A, TAS) ->
@@ -455,6 +461,7 @@ optimize_letrec({letrec,FunName,[Cor1,Cor0],
 optimize_letrec({fun_anon,[Cor0],
                  {match,{case_values,[{variable,Cor0}]}, %added case_values [..] due to get_case_values
                   [{'match|',[{pattern_var,VarName}],true,Body}]}}) ->
+    %% io:format("~nfun_anon ~p",[Cor0]),
     %% keep the original variable names if single clause (1 arg)
     {fun_anon,[VarName],Body};
 optimize_letrec({fun_anon,[Cor1,Cor0],
@@ -462,6 +469,7 @@ optimize_letrec({fun_anon,[Cor1,Cor0],
                   [{'match|',[{pattern_var,VarName1},{pattern_var,VarName0}],true,Body}]}}) ->
     %% keep the original variable names if single clause (2 args)
     %% extend to 3, 4, .. args
+    %% io:format("~nfun_anon ~p ~p",[Cor1,Cor0]),
     {fun_anon,[VarName1,VarName0],Body};
 optimize_letrec(Keep) -> Keep.
 
@@ -526,7 +534,8 @@ compile_pattern(#c_alias  {var = #c_var{name = Name}, pat = Pat}, TAS) ->
 
 compile_when(#c_literal {val = true}, _TAS) -> true;
 compile_when(#c_literal {val = Guard}, TAS) -> compile_body(Guard, TAS);
-compile_when(#c_call    {} = Body,     TAS) -> compile_body(Body, TAS).
+compile_when(#c_call    {} = Body,     TAS) -> compile_body(Body, TAS);
+compile_when(#c_let     {} = Body,     TAS) -> compile_body(Body, TAS).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -560,7 +569,13 @@ generate_field({typed_record_field,{record_field,_Row,{atom,_Row2, _FieldName},_
     %% Do I need to bother about name? Maybe, when I refer to it?
     generate_type(Type);
 generate_field({typed_record_field,{record_field,_Row,{atom,_Row2, _FieldName}         },Type}) ->
-    generate_type(Type).
+    generate_type(Type);
+generate_field({record_field,_Row,{atom,_Row2, FieldName},_Default}) ->
+    {'%%%', FieldName};
+generate_field({record_field,_Row,{atom,_Row2,FieldName}}) ->
+    {'%%%', FieldName}.
+
+
 
 
 generate_type(Type) ->
@@ -575,6 +590,11 @@ generate_type({type, _Row, product, Types}, Constraints) ->
 generate_type({type, _Row, tuple, Types}, Constraints) ->
     maybe_named_tuple({tuple, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)});
 generate_type({type, _Row, record, [Type]}, Constraints) ->
+    {record_type, generate_type(Type, Constraints)};
+generate_type({type, _Row, record, [Type|_FieldTypes]}, Constraints) ->
+    %% -record(c_map_pair, {anno=[],op :: #c_literal{val::'assoc'} | #c_literal{val::'exact'},key,val}).
+    %% becomes {type,78,record,[{atom,78,c_literal},{type,78,field_type,[{atom,78,val},{atom,78,assoc}]}]}
+    %% todo:handle FieldTypes
     {record_type, generate_type(Type, Constraints)};
 generate_type({type, _Row, list, [Type]}, Constraints) ->
     {list, generate_type(Type, Constraints)};
@@ -674,6 +694,9 @@ d_test() ->
 e_test() ->
     %% generate_type({remote_type,72,[{atom,72,erl_types},{atom,72,erl_type},[]]},[])
     te_experiments:t1("/home/mattias/erl-src/otp/lib/dialyzer/src/dialyzer_contracts.erl").
+
+f_test() ->
+    te_experiments:t1("./te_experiments.erl").
 
 e_read() ->
     {ok, Module} = dialyzer_utils:get_core_from_src("/home/mattias/erl-src/otp/lib/dialyzer/src/dialyzer_contracts.erl"),

@@ -44,3 +44,8 @@ same(X,X) ->
     true;
 same(_,_) ->
     false.
+
+seq2(X) ->
+    io:put_chars(X),
+    io:put_chars(X ++ X),
+    io:put_chars("hej").

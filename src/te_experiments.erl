@@ -48,7 +48,7 @@ print(S, {letrec2, Head, Body}) ->
     print(S, Body),
     io:nl(S);
 print(S, {head2, Name, Args, ReturnType}) ->
-    io:put_chars(S, Name),
+    print(S, Name),
     %% make tuple of args
     print_strings(S,Args,"(", ",", ")"),
     case ReturnType of
@@ -59,7 +59,7 @@ print(S, {head2, Name, Args, ReturnType}) ->
     io:put_chars(S," = ");
 print(S, {let2, {'=2',Var,Expr}, Body}) ->
     io:put_chars(S, "let "),
-    io:put_chars(S, Var),
+    print(S, Var),
     io:put_chars(S, " = "),
     io:nl(S),
     print(S, Expr),
@@ -67,7 +67,7 @@ print(S, {let2, {'=2',Var,Expr}, Body}) ->
     io:nl(S),
     print(S, Body);
 print(S, {polymorphic_variant2, Name, Args}) ->
-    io:put_chars(S,Name),
+    print(S,Name),
     print_patterns(S,Args),
     io:nl(S);
 print(S, {mktuple2, Args}) ->
@@ -78,12 +78,12 @@ print(S, {mknil2}) ->
 print(S, {mkcons2,H,T}) ->
     printsF(fun print/2, S, [H,T], "("," :: ",")");
 print(S, {call_module2, M, F, Args}) ->
-    io:put_chars(S,M),
+    print(S,M),
     io:put_chars(S,"."),
-    io:put_chars(S,F),
+    print(S,F),
     prints(S,Args,"(",",",")");
 print(S, {call2, F, Args}) ->
-    io:put_chars(S,F),
+    print(S,F),
     prints(S,Args,"(",",",")");
 print(S, {'fun_anon2', OcamlHead, OcamlBody}) ->
     %% (fun a -> a + 1)
@@ -114,10 +114,14 @@ print(S, {variable2, Name}) ->
 %%     io:put_chars(S,Name);
 print(S, {literal2, Name}) ->
     io:put_chars(S,Name);
-print(S, {literal_string2, Name}) ->
-    io:put_chars(S,Name);
+print(S, {literal_float2, String}) ->
+    io:put_chars(S, String);
+print(S, {literal_string2, String}) ->
+    io:put_chars(S,"\""),
+    io:put_chars(S, String),
+    io:put_chars(S,"\"");
 print(S, {string, String}) ->
-    io:put_chars(S,String);
+    io:put_chars(S, String);
 print(S, String) when is_list(String) ->
     case String of
         []    -> io:put_chars(S,"[]");          % for safety, since I should have these
@@ -138,20 +142,30 @@ print_patterns(S, Pattern) ->
     printsF(fun print_pattern/2, S, Pattern, "(",",",")").
 
 print_pattern(S,{alias2, Var, Pattern}) ->
-    End = ") as " ++ Var ++ ")",
-    printsF(fun print_pattern/2, S, [Pattern], "((",",",End);
+    End = ") as ",
+    printsF(fun print_pattern/2, S, [Pattern], "((",",",End),
+    print_pattern(S,Var),
+    io:put_chars(S,")");
 print_pattern(S,{mkcons2,H,T}) ->
     printsF(fun print_pattern/2, S, [H,T], "("," :: ",")");
 print_pattern(S,{mknil2}) ->
     io:put_chars(S,"[]");
 print_pattern(S,{polymorphic_variant2, Name, Args}) ->
-    io:put_chars(S, Name),
+    print_pattern(S, Name),
     print_patterns(S, Args);
 print_pattern(S,{mktuple2, Args}) ->
     print_patterns(S, Args);
-print_pattern(S, String) when is_list(String) ->
-    %% check why is this needed
+print_pattern(S, {literal_float2, String}) ->
     io:put_chars(S, String);
+print_pattern(S, {string, String}) ->
+    io:put_chars(S, String);
+print_pattern(S, {literal_string2, String}) ->
+    io:put_chars(S,"\""),
+    io:put_chars(S, String),
+    io:put_chars(S,"\"");
+%% print_pattern(S, String) when is_list(String) ->
+%%     %% check why is this needed
+%%     io:put_chars(S, String);
 print_pattern(S, Float) when is_float(Float) ->
     %% maybe this is a erlang string?
     %% check why is this needed
@@ -224,8 +238,9 @@ generate_ocaml({mkcons, H, T}, TAS) ->
 generate_ocaml({mknil}, _TAS) -> {mknil2};
 generate_ocaml({variable,_Name}=V, _TAS) -> fix_variable(V);
 generate_ocaml({literal,Atom}=_V, _TAS) when is_atom(Atom) -> fix_polymorphic_variant(Atom);
-generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) ->  mochinum:digits(Number * 1.0);
+generate_ocaml({literal,Number}=_V, _TAS) when is_number(Number) ->  {literal_float2, mochinum:digits(Number * 1.0)};
 generate_ocaml({literal_string, String}, _TAS) -> {literal_string2, String};
+generate_ocaml({string, _}=String, _TAS) -> String;
 generate_ocaml({literal_map, Map}, _TAS) -> {literal_map2, Map};
 generate_ocaml(true, _) -> true;
 generate_ocaml({call, Fun, Args}, TAS) -> make_call(Fun, Args, TAS);
@@ -262,8 +277,9 @@ generate_ocaml_pattern({pattern_literal, Atom}, _TAS) when is_atom(Atom) ->
     fix_polymorphic_variant(Atom);
 generate_ocaml_pattern({pattern_literal, Number}, _TAS) when is_number(Number) ->
     Number * 1.0;
-generate_ocaml_pattern({pattern_literal, Other}, _TAS) ->
-    Other;
+generate_ocaml_pattern({pattern_literal, Other}, _TAS) when is_list(Other) ->
+    %% Am I 100% sure it is a string?
+    {literal_string2, Other};
 generate_ocaml_pattern({pattern_var, _Var}=V, _TAS) ->
     fix_variable(V);
 generate_ocaml_pattern({pattern_cons, H, T}, TAS) ->
@@ -289,17 +305,20 @@ generate_ocaml_pattern({pattern_map}, _TAS) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% make casing legal ok for ocaml
 %%% todo: wrap stuff below in {string, List} to do better matching above
-fix_function_name({'/',F,N}) -> atom_to_list(F) ++ "_" ++ integer_to_list(N).
+fix_function_name({'/',F,N}) -> {string, atom_to_list(F) ++ "_" ++ integer_to_list(N)}.
+
+fix_module_name(M) -> {string, make_first_upper(M)}.
+
 
 fix_variables(L) -> lists:map(fun fix_variable/1, L).
-fix_variable ({variable, V}) -> make_first_lower(V);
-fix_variable ({pattern_var, V}) -> make_first_lower(V);
-fix_variable ({c_var,_ , V}) -> make_first_lower(V).
+fix_variable ({variable, V}) -> {string, make_first_lower(V)};
+fix_variable ({pattern_var, V}) -> {string, make_first_lower(V)};
+fix_variable ({c_var,_ , V}) -> {string, make_first_lower(V)}.
 
 %%% bit unlogical, for some, I have kept the {variable / {literal stuff, sometimes not
-fix_polymorphic_variant({literal,Atom}) when is_atom(Atom) -> "`" ++ make_first_upper(Atom);
-fix_polymorphic_variant({pattern_literal,Atom}) when is_atom(Atom) -> "`" ++ make_first_upper(Atom);
-fix_polymorphic_variant(Atom) when is_atom(Atom) -> "`" ++ make_first_upper(Atom).
+fix_polymorphic_variant({literal,Atom}) when is_atom(Atom) -> {string, "`" ++ make_first_upper(Atom)};
+fix_polymorphic_variant({pattern_literal,Atom}) when is_atom(Atom) -> {string, "`" ++ make_first_upper(Atom)};
+fix_polymorphic_variant(Atom) when is_atom(Atom) -> {string, "`" ++ make_first_upper(Atom)}.
 
 
 
@@ -325,7 +344,7 @@ function_return_type({'/',_F,_N}=_Fun, _TAS) ->
 make_call({'/', M, F, N}, Args, TAS) ->
     N = length(Args),
     Fun = {'/', F, N},
-    {call_module2, make_first_upper(M), fix_function_name(Fun), generate_ocamls(Args, TAS)};
+    {call_module2, fix_module_name(M), fix_function_name(Fun), generate_ocamls(Args, TAS)};
 make_call({'/', _F, N}=Fun, Args, TAS) ->
     N = length(Args),
     {call2, fix_function_name(Fun), generate_ocamls(Args, TAS)}.
@@ -403,8 +422,8 @@ compile_body(#c_var{name = Name}, _TAS) ->
     %% it can be a tuple like this  c_var{name={print,2}}
     %% io:format("~n c_var{name=~p}", [Name]),
     case Name of
-        {F,N}   -> {literal_string, fix_function_name({'/',F,N})};
-        {M,F,N} -> {literal_string, fix_function_name({'/',M,F,N})};
+        {F,N}   -> fix_function_name({'/',F,N});
+        {M,F,N} -> fix_function_name({'/',M,F,N});
         _       -> {variable, Name}
     end;
 compile_body(#c_call{module = Module, name = Name, args = Args}, TAS) ->

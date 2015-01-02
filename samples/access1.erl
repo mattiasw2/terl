@@ -39,3 +39,8 @@ get2(name, #contact{name = Name}) -> {name, Name}.
 
 %% to_core() ->
 %%     compile:file("../samples/access1.erl",[to_core]).
+
+same(X,X) ->
+    true;
+same(_,_) ->
+    false.

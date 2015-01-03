@@ -212,5 +212,7 @@ operators() ->
      {op,">","gr"},            % |> |Test "greater than". |
      {op,">=","geq"},          % |>= |Test "greater than or equal". |
      {op,"&&","band"},         % |&& & |Boolean conjunction. |
-     {op,"||","bor"}           % ||| or |Boolean disjunction. |
+     {op,"||","bor"},           % ||| or |Boolean disjunction. |
+     {op,"&","band"},         % |&& & |Boolean conjunction. |
+     {op,"or","bor"}           % ||| or |Boolean disjunction. |
     ].

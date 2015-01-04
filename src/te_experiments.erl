@@ -305,25 +305,28 @@ generate_ocaml_pattern({pattern_map}, _TAS) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% make casing legal ok for ocaml
 %%% todo: wrap stuff below in {string, List} to do better matching above
-fix_function_name({'/',F,N}) -> {string, atom_to_list(F) ++ "_" ++ integer_to_list(N)}.
+fix_function_name({'/',F,N}) -> {string, ocaml:fix(atom_to_list(F)) ++ "_" ++ integer_to_list(N)}.
 
-fix_module_name(M) -> {string, make_first_upper(M)}.
+fix_module_name(M) -> {string, ocaml:fix(make_first_upper(M))}.
 
 
 fix_variables(L) -> lists:map(fun fix_variable/1, L).
-fix_variable ({variable, V}) -> {string, make_first_lower(V)};
-fix_variable ({pattern_var, V}) -> {string, make_first_lower(V)};
-fix_variable ({c_var,_ , V}) -> {string, make_first_lower(V)}.
+fix_variable ({variable, V}) -> {string, ocaml:unreserve(make_first_lower(V))};
+fix_variable ({pattern_var, V}) -> {string, ocaml:unreserve(make_first_lower(V))};
+fix_variable ({c_var,_ , V}) -> {string, ocaml:unreserve(make_first_lower(V))}.
 
 %%% bit unlogical, for some, I have kept the {variable / {literal stuff, sometimes not
-fix_polymorphic_variant({literal,Atom}) when is_atom(Atom) -> {string, "`" ++ make_first_upper(Atom)};
-fix_polymorphic_variant({pattern_literal,Atom}) when is_atom(Atom) -> {string, "`" ++ make_first_upper(Atom)};
-fix_polymorphic_variant(Atom) when is_atom(Atom) -> {string, "`" ++ make_first_upper(Atom)}.
+fix_polymorphic_variant({literal,Atom}) when is_atom(Atom) ->
+    {string, "`" ++ ocaml:fix(make_first_upper(Atom))};
+fix_polymorphic_variant({pattern_literal,Atom}) when is_atom(Atom) ->
+    {string, "`" ++ ocaml:fix(make_first_upper(Atom))};
+fix_polymorphic_variant(Atom) when is_atom(Atom) ->
+    {string, "`" ++ ocaml:fix(make_first_upper(Atom))}.
 
 
 
 name_args(Args) -> lists:map(fun name_arg/1, Args).
-name_arg (Arg ) -> make_first_lower(Arg).
+name_arg (Arg ) -> ocaml:unreserve(make_first_lower(Arg)).
 
 make_first_lower(Arg) when is_atom(Arg) -> [H|T] = atom_to_list(Arg), string:to_lower([H]) ++ T.
 make_first_upper(Arg) when is_atom(Arg) -> [H|T] = atom_to_list(Arg), string:to_upper([H]) ++ T.

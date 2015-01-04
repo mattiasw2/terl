@@ -186,13 +186,13 @@ operators() ->
      {op,"~-","uminus"},       % |~- - (prefix) |Integer negation. |
      {op,"*","times"},         % |* |Integer multiplication. |
      {op,"/","div"},           % |/ |Integer division. Raise |
-     {op,"mod","(mod)"},       % |mod |Integer modulus. Raise |
-     {op,"land","(land)"},     % |land |Bitwise logical "and" on integers.|
-     {op,"lor","(lor)"},       % |lor |Bitwise logical "or" on integers. |
-     {op,"lxor","(lxor)"},     % |lxor |Bitwise logical "exclusive or" on |
-     {op,"lsl","(lsl)"},       % |lsl |Bitwise logical shift left on |
-     {op,"lsr","(lsr)"},       % |lsr |Bitwise logical shift right on |
-     {op,"asr","(asr)"},       % |asr |Bitwise arithmetic shift right on |
+     {op,"mod","mod"},       % |mod |Integer modulus. Raise |
+     {op,"land","land"},     % |land |Bitwise logical "and" on integers.|
+     {op,"lor","lor"},       % |lor |Bitwise logical "or" on integers. |
+     {op,"lxor","lxor"},     % |lxor |Bitwise logical "exclusive or" on |
+     {op,"lsl","lsl"},       % |lsl |Bitwise logical shift left on |
+     {op,"lsr","lsr"},       % |lsr |Bitwise logical shift right on |
+     {op,"asr","asr"},       % |asr |Bitwise arithmetic shift right on |
      {op,"+.","fplus"},        % |+. |Floating-point addition. |
      {op,"-.","fminus"},       % |-. (infix) |Floating-point subtraction. |
      {op,"~-.","fuminus"},     % |~-. -. (prefix)|Floating-point negation. |

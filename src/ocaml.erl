@@ -1,7 +1,7 @@
 -module(ocaml).
 
 %%% API
--export([fix/1,unreserve/1,escape/1]).
+-export([fix/1,remove_op/1, unreserve/1,escape/1]).
 
 %%% Behavior
 -export([init/0]).
@@ -12,6 +12,11 @@
 %%% fix the Name so that is doesn't affect ocaml parsing
 -spec fix(string()) -> string().
 fix(Name) ->
+    Db = init(),
+    unreserve(fix(Name, Db), Db).
+
+-spec remove_op(string()) -> string().
+remove_op(Name) ->
     Db = init(),
     fix(Name, Db).
 
@@ -40,15 +45,18 @@ init() ->
     {avoid, ReservedWords, Operators3}.
 
 %%% fix the Name so that is doesn't affect ocaml parsing
-fix(Name, {avoid, ReservedWords, Operators} = Db) ->
+fix("_",_) ->
+    %% special case so that we do not get `_ and similar.
+    "underscore";
+fix(Name, {avoid, _ReservedWords, Operators}) ->
     %% apply each replace on Name
     Result = lists:foldl(
                fun({op2,_From,Regex,To},NameTmp)-> re:replace(NameTmp,Regex,To) end,
                Name,
                Operators),
     %% convert from iolist back to erlang string
-    Name2 = unicode:characters_to_list(Result),
-    unreserve(Name2, Db).
+    unicode:characters_to_list(Result).
+
 
 unreserve(Name, {avoid, ReservedWords, _Operators}) ->
     case sets:is_element(Name, ReservedWords) of

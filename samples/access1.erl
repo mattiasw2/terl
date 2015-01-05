@@ -54,3 +54,9 @@ str1("\"") -> true;
 str1("hej") -> true;
 str1("då") -> str1("hej");
 str1("") -> false.
+
+expand_subtype('_') ->
+    any.
+
+contract_subtype() ->
+    '_'.

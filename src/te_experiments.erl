@@ -33,9 +33,16 @@ t1(File) ->
     TypeAndSpecs = get_spec_and_types(Attrs),
     Funs = get_functions(Defs, TypeAndSpecs),
     Code=lists:map(fun(F) -> generate_ocaml(F, TypeAndSpecs) end, Funs),
-    S = standard_io,
+    %% S = standard_io,
+    RootName = filename:rootname(filename:basename(File),".erl"),
+    {ok, S} = file:open("../ocaml/" ++ RootName ++ ".ml", [write, delayed_write]),
     io:put_chars(S, "let rec dummy_999() = true "), io:nl(S),
-    lists:foreach(fun(C) -> print(S, C) end, Code).
+    lists:foreach(fun(C) -> print(S, C) end, Code),
+    case S of
+        standard_io -> ok;
+        _ -> file:close(S)
+    end.
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

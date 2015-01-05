@@ -117,9 +117,7 @@ print(S, {literal2, Name}) ->
 print(S, {literal_float2, String}) ->
     io:put_chars(S, String);
 print(S, {literal_string2, String}) ->
-    io:put_chars(S,"\""),
-    io:put_chars(S, String),
-    io:put_chars(S,"\"");
+    print_quoted_string(S, String);
 print(S, {string, String}) ->
     io:put_chars(S, String);
 print(S, String) when is_list(String) ->
@@ -134,6 +132,11 @@ print(S, Skip) when is_tuple(Skip) ->
 
 prints(S, Strings, Begin, Delimeter, End) ->
     printsF(fun print/2, S, Strings, Begin, Delimeter, End).
+
+print_quoted_string(S, String) ->
+    io:put_chars(S,"\""),
+    io:put_chars(S, re:replace(String,"\"","\\\\\"")),
+    io:put_chars(S,"\"").
 
 print_strings(S, Strings, Begin, Delimeter, End) ->
     printsF(fun io:put_chars/2, S, Strings, Begin, Delimeter, End).
@@ -160,9 +163,7 @@ print_pattern(S, {literal_float2, String}) ->
 print_pattern(S, {string, String}) ->
     io:put_chars(S, String);
 print_pattern(S, {literal_string2, String}) ->
-    io:put_chars(S,"\""),
-    io:put_chars(S, String),
-    io:put_chars(S,"\"");
+    print_quoted_string(S, String);
 %% print_pattern(S, String) when is_list(String) ->
 %%     %% check why is this needed
 %%     io:put_chars(S, String);
@@ -593,9 +594,9 @@ generate_field({typed_record_field,{record_field,_Row,{atom,_Row2, _FieldName},_
 generate_field({typed_record_field,{record_field,_Row,{atom,_Row2, _FieldName}         },Type}) ->
     generate_type(Type);
 generate_field({record_field,_Row,{atom,_Row2, FieldName},_Default}) ->
-    {'%%%', FieldName};
+    {comment, FieldName};
 generate_field({record_field,_Row,{atom,_Row2,FieldName}}) ->
-    {'%%%', FieldName}.
+    {comment, FieldName}.
 
 
 
@@ -655,7 +656,7 @@ generate_type({atom, _Row, Atom}, _Constraints) ->
     {atom, Atom};
 generate_type({remote_type, _Row, _} = Remote_type, _Constraints) ->
     %% _ [{atom,72,erl_types},{atom,72,erl_type},[]]
-    {'%%%', Remote_type};
+    {comment, Remote_type};
 generate_type({paren_type,_Row,[Type]}, Constraints) ->
     generate_type(Type, Constraints).
 

@@ -29,19 +29,20 @@ t1(File) ->
     _Name = Module#c_module.name,
     _Exports = Module#c_module.exports,
     Attrs = Module#c_module.attrs,
-    Defs = Module#c_module.defs,
     TypeAndSpecs = get_spec_and_types(Attrs),
-    Funs = get_functions(Defs, TypeAndSpecs),
-    Code=lists:map(fun(F) -> generate_ocaml(F, TypeAndSpecs) end, Funs),
-    %% S = standard_io,
     RootName = filename:rootname(filename:basename(File),".erl"),
-    {ok, S} = file:open("../ocaml/" ++ RootName ++ ".ml", [write, delayed_write]),
-    io:put_chars(S, "let rec dummy_999() = true "), io:nl(S),
-    lists:foreach(fun(C) -> print(S, C) end, Code),
-    case S of
-        standard_io -> ok;
-        _ -> file:close(S)
-    end.
+    %% Defs = Module#c_module.defs,
+    %% Funs = get_functions(Defs, TypeAndSpecs),
+    %% Code=lists:map(fun(F) -> generate_ocaml(F, TypeAndSpecs) end, Funs),
+    %% %% S = standard_io,
+    %% {ok, S} = file:open("../ocaml/" ++ RootName ++ ".ml", [write, delayed_write]),
+    %% io:put_chars(S, "let rec dummy_999() = true "), io:nl(S),
+    %% lists:foreach(fun(C) -> print(S, C) end, Code),
+    %% case S of
+    %%     standard_io -> ok;
+    %%     _ -> file:close(S)
+    %% end,
+    print_mli(RootName, TypeAndSpecs).
 
 
 
@@ -567,6 +568,74 @@ compile_when(#c_literal {val = true}, _TAS) -> true;
 compile_when(#c_literal {val = Guard}, TAS) -> compile_body(Guard, TAS);
 compile_when(#c_call    {} = Body,     TAS) -> compile_body(Body, TAS);
 compile_when(#c_let     {} = Body,     TAS) -> compile_body(Body, TAS).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% print out type specifications and types
+
+print_mli(_File, TAS) ->
+    S = standard_io,
+    lists:foreach(fun(T) -> print_type(S, T) end, TAS).
+
+print_types(S, Types) ->
+    printsF(fun print_type/2, S, Types, "(", "*", ")").
+
+
+%%% toplevel
+print_type(S, {named_tuple, {atom, Name}, Types}) ->
+    %% todo: when will this be used?
+    io:nl(S),
+    io:put_chars(S, "type "),
+    io:put_chars(S, atom_to_list(Name)),
+    io:put_chars(S, " = "),
+    io:nl(S),
+    print_types(S, Types),
+    io:nl(S);
+print_type(S, {type, Name, Type}) ->
+    %% should a type be a polymorphic variant?
+    %% todo: let us try without first
+    io:nl(S),
+    io:put_chars(S, "type "),
+    io:put_chars(S, atom_to_list(Name)),
+    io:put_chars(S, " = "),
+    io:nl(S),
+    print_type(S, Type),
+    io:nl(S);
+print_type(S, {spec, F, N, Type}) ->
+    {string, Name} = fix_function_name({'/',F,N}),
+    io:nl(S),
+    io:put_chars(S, "val "),
+    io:put_chars(S, Name),
+    io:put_chars(S, " : "),
+    io:nl(S),
+    print_type(S, Type),
+    io:nl(S);
+%% inside
+print_type(S, string) ->
+    io:put_chars(S,"string");
+print_type(S, integer) ->
+    io:put_chars(S,"int");
+print_type(S, {atom, Name}) ->
+    %% convert to poly?
+    io:put_chars(S,atom_to_list(Name));
+print_type(S, {list,Type}) ->
+    printsF(fun print_type/2, S, [Type], "(", ",", " list)");
+print_type(S, {record_type, {atom, Name}}) ->
+    %% todo: do I need to make a polymorphica
+    %% DA40, skolflygplan
+    io:put_chars(S,atom_to_list(Name));
+print_type(S, {'|', Types}) ->
+    printsF(fun print_type/2, S, Types, "(", "|", ")");
+print_type(S, {'*', Types}) ->
+    printsF(fun print_type/2, S, Types, "(", "*", ")");
+print_type(S, {'->', L, R}) ->
+    printsF(fun print_type/2, S, [L,R], "(", "->", ")").
+
+
+
+
+
+
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

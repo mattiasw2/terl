@@ -1,0 +1,1 @@
+http://stackoverflow.com/questions/27924125/ignoring-existing-dialyzer-errors-with-make-and-grep

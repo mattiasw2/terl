@@ -1,5 +1,5 @@
 :name "terl"
 :node-sname "terl"
-:lib-dirs '("lib" "test")
+:lib-dirs '("deps")
 :app-include-dirs '("include")
 :project-include-dirs '("include")

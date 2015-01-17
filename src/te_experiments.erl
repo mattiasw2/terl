@@ -586,9 +586,13 @@ print_type(S, {named_tuple, {atom, Name}, Types}) ->
     io:nl(S),
     io:put_chars(S, "type "),
     io:put_chars(S, atom_to_list(Name)),
-    io:put_chars(S, " = "),
+    io:put_chars(S, " = ["),
+    {string, Poly} = fix_polymorphic_variant(Name),
+    io:put_chars(S, Poly),
+    io:put_chars(S, " of "),
     io:nl(S),
     print_types(S, Types),
+    io:put_chars(S, "]"),
     io:nl(S);
 print_type(S, {type, Name, Type}) ->
     %% should a type be a polymorphic variant?

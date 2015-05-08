@@ -14,10 +14,10 @@
 -spec start(_,_) -> {'error',_} | {'ok',pid()}. %| {'ok',pid(),_}.
 start(_StartType, _StartArgs) ->
     lager:start(),
-    edts_log:info("terl started"),
-    shc_sup:start_link().
+    lager:info("terl started",[]),
+    terl_sup:start_link().
 
 -spec stop(_) -> 'ok'.
 stop(_State) ->
-    edts_log:info("terl stopped"),
+    lager:info("terl stopped",[]),
     ok.

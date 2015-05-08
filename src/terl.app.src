@@ -8,7 +8,10 @@
   {applications, [
                   kernel,
                   stdlib,
-                  compiler
+                  compiler,
+                  lager,
+                  sync,
+                  eper
                  ]},
   {mod, { terl_app, []}},
   {env, []}

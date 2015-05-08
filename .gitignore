@@ -1,3 +1,4 @@
+/_rel/
 /ocaml/*.ml
 /ocaml/a.out
 /ocaml/*.cmi

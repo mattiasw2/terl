@@ -1,5 +1,5 @@
-:name "edtsterl"
-:node-sname "edtsterl"
+:name "edts_terl"
+:node-sname "edts_terl"
 :lib-dirs '("deps")
 :app-include-dirs '("include")
 :project-include-dirs '("include")

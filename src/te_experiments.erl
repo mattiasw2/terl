@@ -632,7 +632,29 @@ print_type(S, {'|', Types}) ->
 print_type(S, {'*', Types}) ->
     printsF(fun print_type/2, S, Types, "(", "*", ")");
 print_type(S, {'->', L, R}) ->
-    printsF(fun print_type/2, S, [L,R], "(", "->", ")").
+    printsF(fun print_type/2, S, [L,R], "(", "->", ")");
+print_type(S, {map_typed, Types}) ->
+    %% {map_typed,[{map_field_assoc,string,integer}]}
+    io:put_chars(S, "("),
+    print_types(S, Types),
+    io:put_chars(S, " map)");
+print_type(S, {map_unsupported, _}) ->
+    io:put_chars(S, " () (* ********** maps with multiple key types is not supported unless you define a union type *)");
+print_type(S, {map_field_assoc, Key, Value}) ->
+    print_types(S, [Key, Value]);
+print_type(S, {map_record_like, Types}) ->
+    %% {map_record_like,[{map_field_assoc,{atom,age},integer},{map_field_assoc,{atom,name},string}]}
+    io:put_chars(S, "("),
+    printsF(fun print_type_map_record_like/2, S, Types, "[>", ",", "]"),
+    io:put_chars(S, " set)").
+
+print_type_map_record_like(S, {map_field_assoc,{atom,Name},Type}) ->
+    print_type(S, {named_tuple, {atom, Name}, [Type]}).
+
+
+
+
+
 
 
 

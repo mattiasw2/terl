@@ -8,13 +8,16 @@ else
 _NO_NATIVE =
 endif
 
-
 all:
 	rebar compile
 
 run:
-	werl.exe -pa ./ebin -pa ./deps/*/ebin -config terl.config
+	cd src; erl -config ../release/sys.config -sync log all
 
+#run:
+#	werl.exe -pa ./ebin -pa ./deps/*/ebin -config terl.config
+
+# relx not working, searching for hipe and dialyzer
 relx:	all
 	~/erl-src/relx/relx
 

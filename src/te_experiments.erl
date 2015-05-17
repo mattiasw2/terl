@@ -574,27 +574,25 @@ compile_when(#c_let     {} = Body,     TAS) -> compile_body(Body, TAS).
 
 print_mli(_File, TAS) ->
     S = standard_io,
-    lists:foreach(fun(T) -> print_type(S, T) end, TAS).
+    lists:foreach(fun(T) -> print_type_toplevel(S, T) end, TAS).
 
 print_types(S, Types) ->
+    %% comment removal needed for /home/mattias/erl-src/otp/lib/dialyzer/src/dialyzer_contracts.erl
+    %% TypesNoComment = [X || X<-Types, element(1,X) =/= comment],
     printsF(fun print_type/2, S, Types, "(", "*", ")").
 
 
 %%% toplevel
-print_type(S, {named_tuple, {atom, Name}, Types}) ->
+print_type_toplevel(S, {named_tuple, {atom, Name}, _} = Top) ->
     %% todo: when will this be used?
     io:nl(S),
     io:put_chars(S, "type "),
     io:put_chars(S, atom_to_list(Name)),
     io:put_chars(S, " = ["),
-    {string, Poly} = fix_polymorphic_variant(Name),
-    io:put_chars(S, Poly),
-    io:put_chars(S, " of "),
-    io:nl(S),
-    print_types(S, Types),
+    print_type(S, Top),
     io:put_chars(S, "]"),
     io:nl(S);
-print_type(S, {type, Name, Type}) ->
+print_type_toplevel(S, {type, Name, Type}) ->
     %% should a type be a polymorphic variant?
     %% todo: let us try without first
     io:nl(S),
@@ -604,7 +602,7 @@ print_type(S, {type, Name, Type}) ->
     io:nl(S),
     print_type(S, Type),
     io:nl(S);
-print_type(S, {spec, F, N, Type}) ->
+print_type_toplevel(S, {spec, F, N, Type}) ->
     {string, Name} = fix_function_name({'/',F,N}),
     io:nl(S),
     io:put_chars(S, "val "),
@@ -613,10 +611,27 @@ print_type(S, {spec, F, N, Type}) ->
     io:nl(S),
     print_type(S, Type),
     io:nl(S);
+print_type_toplevel(S, {export_type, _}) ->
+    io:put_chars(S, " () (* ********** export_type not supported *)").
+
+
 %% inside
+print_type(S, {comment,{remote_type,_,[{atom,_,Module},{atom,_,Type},[]]}}) ->
+    %% {comment,{remote_type,83,[{atom,83,file},{atom,83,filename},[]]}}
+    io:put_chars(S, atom_to_list(Module)),
+    io:put_chars(S, "."),
+    io:put_chars(S, atom_to_list(Type));
+print_type(S, {named_tuple, {atom, Name}, Types}) ->
+    {string, Poly} = fix_polymorphic_variant(Name),
+    io:put_chars(S, Poly),
+    io:put_chars(S, " of "),
+    io:nl(S),
+    print_types(S, Types);
 print_type(S, string) ->
     io:put_chars(S,"string");
 print_type(S, integer) ->
+    io:put_chars(S,"int");
+print_type(S, non_neg_integer) ->
     io:put_chars(S,"int");
 print_type(S, {atom, Name}) ->
     %% convert to poly?
@@ -627,9 +642,13 @@ print_type(S, {record_type, {atom, Name}}) ->
     %% todo: do I need to make a polymorphica
     %% DA40, skolflygplan
     io:put_chars(S,atom_to_list(Name));
+print_type(S, {'|', [{named_tuple, _, _}|_] = Types}) ->
+    printsF(fun print_type/2, S, Types, "[", "|", "]");
 print_type(S, {'|', Types}) ->
     printsF(fun print_type/2, S, Types, "(", "|", ")");
 print_type(S, {'*', Types}) ->
+    printsF(fun print_type/2, S, Types, "(", "*", ")");
+print_type(S, {'tuple', Types}) ->
     printsF(fun print_type/2, S, Types, "(", "*", ")");
 print_type(S, {'->', L, R}) ->
     printsF(fun print_type/2, S, [L,R], "(", "->", ")");
@@ -645,7 +664,7 @@ print_type(S, {map_field_assoc, Key, Value}) ->
 print_type(S, {map_record_like, Types}) ->
     %% {map_record_like,[{map_field_assoc,{atom,age},integer},{map_field_assoc,{atom,name},string}]}
     io:put_chars(S, "("),
-    printsF(fun print_type_map_record_like/2, S, Types, "[>", ",", "]"),
+    printsF(fun print_type_map_record_like/2, S, Types, "[< ", ",", "]"),
     io:put_chars(S, " set)").
 
 print_type_map_record_like(S, {map_field_assoc,{atom,Name},Type}) ->

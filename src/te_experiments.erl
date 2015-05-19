@@ -182,14 +182,24 @@ print_pattern(S, Float) when is_float(Float) ->
 
 
 %%% generic printer of lists with delimiter and begin and end
+printsF_scope(F, S, Strings, Begin, Delimeter, End, Scope) ->
+    io:put_chars(S, Begin),
+    printsF_scope(F, S, Strings, Delimeter, Scope),
+    io:put_chars(S, End).
+
+printsF_scope(_, _, [], _           , _Scope) -> ok;
+printsF_scope(F, S, [H], _          , Scope ) -> F(S,H,Scope), ok;
+printsF_scope(F, S, [H|T], Delimeter, Scope ) -> F(S,H,Scope), io:put_chars(S,Delimeter), printsF_scope(F,S,T,Delimeter,Scope).
+
+%%% version without Scope
 printsF(F, S, Strings, Begin, Delimeter, End) ->
     io:put_chars(S, Begin),
     printsF(F, S, Strings, Delimeter),
     io:put_chars(S, End).
 
-printsF(_, _, [], _            ) -> ok;
-printsF(F, S, [H], _           ) -> F(S,H), ok;
-printsF(F, S, [H|T], Delimeter ) -> F(S,H), io:put_chars(S,Delimeter), printsF(F, S,T,Delimeter).
+printsF(_, _, [], _           ) -> ok;
+printsF(F, S, [H], _          ) -> F(S,H), ok;
+printsF(F, S, [H|T], Delimeter) -> F(S,H), io:put_chars(S,Delimeter), printsF(F,S,T,Delimeter).
 
 
 
@@ -572,27 +582,38 @@ compile_when(#c_let     {} = Body,     TAS) -> compile_body(Body, TAS).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% print out type specifications and types
 
+-record(mli,{
+          types = [] :: [atom()]
+         }).
+
 print_mli(_File, TAS) ->
     S = standard_io,
-    lists:foreach(fun(T) -> print_type_toplevel(S, T) end, TAS).
+    Scope = print_mli_scope(TAS),
+    lists:foreach(fun(T) -> print_type_toplevel(S, T, Scope) end, TAS).
 
-print_types(S, Types) ->
+print_mli_scope(TAS) ->
+    Types =
+        [ Type || {named_tuple, {atom, Type}, _} <- TAS]
+        ++ [ Type || {type, Type, _} <- TAS],
+    #mli{types = Types}.
+
+print_types(S, Types, Scope) ->
     %% comment removal needed for /home/mattias/erl-src/otp/lib/dialyzer/src/dialyzer_contracts.erl
     %% TypesNoComment = [X || X<-Types, element(1,X) =/= comment],
-    printsF(fun print_type/2, S, Types, "(", "*", ")").
+    printsF_scope(fun print_type/3, S, Types, "(", "*", ")", Scope).
 
 
 %%% toplevel
-print_type_toplevel(S, {named_tuple, {atom, Name}, _} = Top) ->
+print_type_toplevel(S, {named_tuple, {atom, Name}, _} = Top, Scope) ->
     %% todo: when will this be used?
     io:nl(S),
     io:put_chars(S, "type "),
     io:put_chars(S, atom_to_list(Name)),
     io:put_chars(S, " = ["),
-    print_type(S, Top),
+    print_type(S, Top, Scope),
     io:put_chars(S, "]"),
     io:nl(S);
-print_type_toplevel(S, {type, Name, Type}) ->
+print_type_toplevel(S, {type, Name, Type}, Scope) ->
     %% should a type be a polymorphic variant?
     %% todo: let us try without first
     io:nl(S),
@@ -600,75 +621,106 @@ print_type_toplevel(S, {type, Name, Type}) ->
     io:put_chars(S, atom_to_list(Name)),
     io:put_chars(S, " = "),
     io:nl(S),
-    print_type(S, Type),
+    print_type(S, Type, Scope),
     io:nl(S);
-print_type_toplevel(S, {spec, F, N, Type}) ->
+print_type_toplevel(S, {spec, F, N, Type}, Scope) ->
     {string, Name} = fix_function_name({'/',F,N}),
     io:nl(S),
     io:put_chars(S, "val "),
     io:put_chars(S, Name),
     io:put_chars(S, " : "),
     io:nl(S),
-    print_type(S, Type),
+    print_type(S, Type, Scope),
     io:nl(S);
-print_type_toplevel(S, {export_type, _}) ->
+print_type_toplevel(S, {export_type, _}, _Scope) ->
     io:put_chars(S, " () (* ********** export_type not supported *)").
 
 
-%% inside
-print_type(S, {comment,{remote_type,_,[{atom,_,Module},{atom,_,Type},[]]}}) ->
+%% some special cases expanded first until I really understand how typed sets and dictionaries works
+%% but it seems that I should just remove {comment, {type and go inside.
+%% {remote_type, I need to handle separately
+print_type(S, {comment,{remote_type,_,[{atom,_,Module},{atom,_,Type},[]]}}, _Scope) ->
+    %% file:filename()
     %% {comment,{remote_type,83,[{atom,83,file},{atom,83,filename},[]]}}
     io:put_chars(S, atom_to_list(Module)),
     io:put_chars(S, "."),
     io:put_chars(S, atom_to_list(Type));
-print_type(S, {named_tuple, {atom, Name}, Types}) ->
+print_type(S, {comment,{remote_type,_,[{atom,_,Module},{atom,_,Type},[{type,_,SubType,[]}]]}}, Scope) ->
+    %% ordsets:ordset(dial_warn_tag()),
+    %% {comment,{remote_type,141,[{atom,141,ordsets},{atom,141,ordset},[{type,141,dial_warn_tag,[]}]]}}
+    io:put_chars(S, atom_to_list(Module)),
+    io:put_chars(S, "."),
+    io:put_chars(S, atom_to_list(Type)),
+    io:put_chars(S, "("),
+    print_type(S, SubType, Scope),
+    io:put_chars(S, ")");
+print_type(S, {comment,{remote_type,_,[{atom,_,Module},{atom,_,Type},[{type,_,SubType,[]}]]}}, Scope) ->
+    %% dict:dict(label(), erl_types:type_table())
+    %% {comment,{remote_type,166,[{atom,166,dict},{atom,166,dict},[{type,166,label,[]},{remote_type,166,[{atom,166,erl_types},{atom,166,type_table},[]]}]]}}
+    io:put_chars(S, atom_to_list(Module)),
+    io:put_chars(S, "."),
+    io:put_chars(S, atom_to_list(Type)),
+    io:put_chars(S, "("),
+    print_type(S, SubType, Scope),
+    io:put_chars(S, ")");
+print_type(S, {named_tuple, {atom, Name}, Types}, Scope) ->
     {string, Poly} = fix_polymorphic_variant(Name),
     io:put_chars(S, Poly),
     io:put_chars(S, " of "),
     io:nl(S),
-    print_types(S, Types);
-print_type(S, string) ->
-    io:put_chars(S,"string");
-print_type(S, integer) ->
-    io:put_chars(S,"int");
-print_type(S, non_neg_integer) ->
-    io:put_chars(S,"int");
-print_type(S, {atom, Name}) ->
+    print_types(S, Types, Scope);
+print_type(S, {atom, Name}, _Scope) ->
     %% convert to poly?
     io:put_chars(S,atom_to_list(Name));
-print_type(S, {list,Type}) ->
-    printsF(fun print_type/2, S, [Type], "(", ",", " list)");
-print_type(S, {record_type, {atom, Name}}) ->
+print_type(S, {list,Type}, Scope) ->
+    printsF_scope(fun print_type/3, S, [Type], "(", ",", " list)", Scope);
+print_type(S, {record_type, {atom, Name}}, _Scope) ->
     %% todo: do I need to make a polymorphica
     %% DA40, skolflygplan
     io:put_chars(S,atom_to_list(Name));
-print_type(S, {'|', [{named_tuple, _, _}|_] = Types}) ->
-    printsF(fun print_type/2, S, Types, "[", "|", "]");
-print_type(S, {'|', Types}) ->
-    printsF(fun print_type/2, S, Types, "(", "|", ")");
-print_type(S, {'*', Types}) ->
-    printsF(fun print_type/2, S, Types, "(", "*", ")");
-print_type(S, {'tuple', Types}) ->
-    printsF(fun print_type/2, S, Types, "(", "*", ")");
-print_type(S, {'->', L, R}) ->
-    printsF(fun print_type/2, S, [L,R], "(", "->", ")");
-print_type(S, {map_typed, Types}) ->
+print_type(S, {'|', [{named_tuple, _, _}|_] = Types}, Scope) ->
+    printsF_scope(fun print_type/3, S, Types, "[", "|", "]", Scope);
+print_type(S, {'|', Types}, Scope) ->
+    printsF_scope(fun print_type/3, S, Types, "(", "|", ")", Scope);
+print_type(S, {'*', Types}, Scope) ->
+    printsF_scope(fun print_type/3, S, Types, "(", "*", ")", Scope);
+print_type(S, {'tuple', Types}, Scope) ->
+    printsF_scope(fun print_type/3, S, Types, "(", "*", ")", Scope);
+print_type(S, {'->', L, R}, Scope) ->
+    printsF_scope(fun print_type/3, S, [L,R], "(", "->", ")", Scope);
+print_type(S, {map_typed, Types}, Scope) ->
     %% {map_typed,[{map_field_assoc,string,integer}]}
     io:put_chars(S, "("),
-    print_types(S, Types),
+    print_types(S, Types, Scope),
     io:put_chars(S, " map)");
-print_type(S, {map_unsupported, _}) ->
-    io:put_chars(S, " () (* ********** maps with multiple key types is not supported unless you define a union type *)");
-print_type(S, {map_field_assoc, Key, Value}) ->
-    print_types(S, [Key, Value]);
-print_type(S, {map_record_like, Types}) ->
+print_type(S, {map_unsupported, _}, _Scope) ->
+     io:put_chars(S, " () (* ********** maps with multiple key types is not supported unless you define a union type *)");
+print_type(S, {map_field_assoc, Key, Value}, Scope) ->
+    print_types(S, [Key, Value], Scope);
+print_type(S, {map_record_like, Types}, Scope) ->
     %% {map_record_like,[{map_field_assoc,{atom,age},integer},{map_field_assoc,{atom,name},string}]}
     io:put_chars(S, "("),
-    printsF(fun print_type_map_record_like/2, S, Types, "[< ", ",", "]"),
-    io:put_chars(S, " set)").
+    printsF_scope(fun print_type_map_record_like/3, S, Types, "[< ", ",", "]", Scope),
+    io:put_chars(S, " set)");
+print_type(S, string, _Scope) ->
+    io:put_chars(S,"string");
+print_type(S, integer, _Scope) ->
+    io:put_chars(S,"int");
+print_type(S, non_neg_integer, _Scope) ->
+    io:put_chars(S,"int");
+print_type(S, Atom, Scope) when is_atom(Atom) ->
+    %% user-defined type
+    case lists:member(Atom, Scope#mli.types) of
+        true  -> io:put_chars(S,atom_to_list(Atom));
+        false -> io:format(S, " ~w (* ********** unknown type ~w*) ", [Atom, Atom])
+    end.
 
-print_type_map_record_like(S, {map_field_assoc,{atom,Name},Type}) ->
-    print_type(S, {named_tuple, {atom, Name}, [Type]}).
+
+
+
+
+print_type_map_record_like(S, {map_field_assoc,{atom,Name},Type}, Scope) ->
+    print_type(S, {named_tuple, {atom, Name}, [Type]}, Scope).
 
 
 

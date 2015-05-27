@@ -639,29 +639,61 @@ print_type_toplevel(S, {export_type, _}, _Scope) ->
 %% some special cases expanded first until I really understand how typed sets and dictionaries works
 %% but it seems that I should just remove {comment, {type and go inside.
 %% {remote_type, I need to handle separately
-print_type(S, {comment,{remote_type,_,[{atom,_,Module},{atom,_,Type},[]]}}, _Scope) ->
+print_type(S, {comment,{remote_type,_,_} = R}, Scope) ->
+    print_type(S, R, Scope);
+print_type(S, {type,_,Atom,[]}, Scope) ->
+    print_type(S, Atom, Scope);
+print_type(S, {type,_,Atom,SubTypes}, Scope) when is_list(SubTypes) ->
+    io:put_chars(S, atom_to_list(Atom)),
+    io:put_chars(S, "("),
+    %% todo: fix proper Ocaml syntax
+    %% todo: maybe I need to differentiate between 1 and 2 lebgth
+    print_types(S, SubTypes, Scope),
+    io:put_chars(S, ")");
+print_type(S, {remote_type,_,[{atom,_,Module},{atom,_,Type},[]]}, _Scope) ->
     %% file:filename()
     %% {comment,{remote_type,83,[{atom,83,file},{atom,83,filename},[]]}}
     io:put_chars(S, atom_to_list(Module)),
     io:put_chars(S, "."),
     io:put_chars(S, atom_to_list(Type));
-print_type(S, {comment,{remote_type,_,[{atom,_,Module},{atom,_,Type},[{type,_,SubType,[]}]]}}, Scope) ->
+print_type(S, {remote_type,_,[{atom,_,Module},{atom,_,Type},[SubType]]}, Scope) ->
     %% ordsets:ordset(dial_warn_tag()),
     %% {comment,{remote_type,141,[{atom,141,ordsets},{atom,141,ordset},[{type,141,dial_warn_tag,[]}]]}}
-    io:put_chars(S, atom_to_list(Module)),
-    io:put_chars(S, "."),
-    io:put_chars(S, atom_to_list(Type)),
-    io:put_chars(S, "("),
-    print_type(S, SubType, Scope),
-    io:put_chars(S, ")");
-print_type(S, {comment,{remote_type,_,[{atom,_,Module},{atom,_,Type},[{type,_,SubType,[]}]]}}, Scope) ->
     %% dict:dict(label(), erl_types:type_table())
     %% {comment,{remote_type,166,[{atom,166,dict},{atom,166,dict},[{type,166,label,[]},{remote_type,166,[{atom,166,erl_types},{atom,166,type_table},[]]}]]}}
+    %% the Ocaml order is backward, i.e. "int sets"
+    io:put_chars(S, "("),
+    print_type(S, SubType, Scope),
+    io:put_chars(S, " "),
     io:put_chars(S, atom_to_list(Module)),
     io:put_chars(S, "."),
     io:put_chars(S, atom_to_list(Type)),
+    io:put_chars(S, ")");
+print_type(S, {remote_type,_,[{atom,_,dict},{atom,_,dict},[SubTypeFrom, SubTypeTo]]}, Scope) ->
+    %% todo: handle map:map too!
+    %%
+    %% mapping, need to define type like
+    %% module MyUsers = Map.Make(String);;
+    %% +
+    %% # MyUsers.empty;;
+    %% - : 'a MyUsers.t = <abstr>
+    %% +
+    %% MyUsers.add "10" "300" u;;
+    %%- : string MyUsers.t = <abstr>
+    %%
+    %% ordsets:ordset(dial_warn_tag()),
+    %% {comment,{remote_type,141,[{atom,141,ordsets},{atom,141,ordset},[{type,141,dial_warn_tag,[]}]]}}
+    %% dict:dict(label(), erl_types:type_table())
+    %% {comment,{remote_type,166,[{atom,166,dict},{atom,166,dict},[{type,166,label,[]},{remote_type,166,[{atom,166,erl_types},{atom,166,type_table},[]]}]]}}
+    %% the Ocaml order is backward, i.e. "int MyString.t"
+    %%
+    %% todo: need to call print_type, and need to put this on top-level
+    MyMapName = io_lib:format("My~w",[SubTypeFrom]),
+    io:format("(* module ~w = Map.Make(~w) *)",[MyMapName,SubTypeFrom]),
     io:put_chars(S, "("),
-    print_type(S, SubType, Scope),
+    print_type(S, SubTypeTo, Scope),
+    io:put_chars(S, " "),
+    io:format("~w",[MyMapName]),
     io:put_chars(S, ")");
 print_type(S, {named_tuple, {atom, Name}, Types}, Scope) ->
     {string, Poly} = fix_polymorphic_variant(Name),
@@ -669,12 +701,12 @@ print_type(S, {named_tuple, {atom, Name}, Types}, Scope) ->
     io:put_chars(S, " of "),
     io:nl(S),
     print_types(S, Types, Scope);
-print_type(S, {atom, Name}, _Scope) ->
+print_type(S, {atom2, Name}, _Scope) ->
     %% convert to poly?
     io:put_chars(S,atom_to_list(Name));
 print_type(S, {list,Type}, Scope) ->
     printsF_scope(fun print_type/3, S, [Type], "(", ",", " list)", Scope);
-print_type(S, {record_type, {atom, Name}}, _Scope) ->
+print_type(S, {record_type2, Name}, _Scope) ->
     %% todo: do I need to make a polymorphica
     %% DA40, skolflygplan
     io:put_chars(S,atom_to_list(Name));
@@ -786,13 +818,13 @@ generate_type({type, _Row, product, Types}, Constraints) ->
     {'*', lists:map(fun(T) -> generate_type(T, Constraints) end, Types)};
 generate_type({type, _Row, tuple, Types}, Constraints) ->
     maybe_named_tuple({tuple, lists:map(fun(T) -> generate_type(T, Constraints) end, Types)});
-generate_type({type, _Row, record, [Type]}, Constraints) ->
-    {record_type, generate_type(Type, Constraints)};
-generate_type({type, _Row, record, [Type|_FieldTypes]}, Constraints) ->
+generate_type({type, _Row, record, [{atom, _, Type}]}, Constraints) ->
+    {record_type2, Type};
+generate_type({type, _Row, record, [{atom, _, Type}|_FieldTypes]}, Constraints) ->
     %% -record(c_map_pair, {anno=[],op :: #c_literal{val::'assoc'} | #c_literal{val::'exact'},key,val}).
     %% becomes {type,78,record,[{atom,78,c_literal},{type,78,field_type,[{atom,78,val},{atom,78,assoc}]}]}
     %% todo:handle FieldTypes
-    {record_type, generate_type(Type, Constraints)};
+    {record_type2, Type};
 generate_type({type, _Row, list, [Type]}, Constraints) ->
     {list, generate_type(Type, Constraints)};
 generate_type({type, _Row, nonempty_list, [Type]}, Constraints) ->
@@ -827,7 +859,8 @@ generate_type({integer, _Row, _ConstantValue}, _Constraints) ->
 generate_type({var, _Row, Atom}, Constraints) ->
     expand_subtype(Atom, Constraints);
 generate_type({atom, _Row, Atom}, _Constraints) ->
-    {atom, Atom};
+    %% age in -spec get1('age' | 'name', #contact{}) -> {'age', integer()} | {'name', string()}.
+    {atom2, Atom};
 generate_type({remote_type, _Row, _} = Remote_type, _Constraints) ->
     %% _ [{atom,72,erl_types},{atom,72,erl_type},[]]
     {comment, Remote_type};

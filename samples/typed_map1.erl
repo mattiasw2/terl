@@ -2,6 +2,14 @@
 
 -compile(export_all).
 
+%% should 'universe' become a [> `Universe] ??
+-type opaques() :: [integer()] | 'universe'.
+-type opaques_fun() :: fun((module()) -> opaques()).
+-type label() :: string().
+-type fun_types() :: dict:dict(label(), erl_types:type_table()).
+-type fun_types2() :: sets:set(label()).
+
+
 -type map_traditional_t() :: #{string() => integer()}.
 -type map_unsupported_t() :: #{string() => integer(), float() => string()}.
 -type map_record_like_t() :: #{age => integer(), name => string()}.

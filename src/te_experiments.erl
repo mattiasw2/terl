@@ -688,12 +688,13 @@ print_type(S, {remote_type,_,[{atom,_,dict},{atom,_,dict},[SubTypeFrom, SubTypeT
     %% the Ocaml order is backward, i.e. "int MyString.t"
     %%
     %% todo: need to call print_type, and need to put this on top-level
-    MyMapName = io_lib:format("My~w",[SubTypeFrom]),
-    io:format("(* module ~w = Map.Make(~w) *)",[MyMapName,SubTypeFrom]),
+    {type,_,SubTypeFromName,[]} = SubTypeFrom,
+    MyMapName = lists:flatten(io_lib:format("My~p",[SubTypeFromName])),
+    io:format("(* module ~p = Map.Make(~p) *)~n",[MyMapName,SubTypeFromName]),
     io:put_chars(S, "("),
     print_type(S, SubTypeTo, Scope),
     io:put_chars(S, " "),
-    io:format("~w",[MyMapName]),
+    io:format("~p",[MyMapName]),
     io:put_chars(S, ")");
 print_type(S, {named_tuple, {atom, Name}, Types}, Scope) ->
     {string, Poly} = fix_polymorphic_variant(Name),
@@ -701,9 +702,10 @@ print_type(S, {named_tuple, {atom, Name}, Types}, Scope) ->
     io:put_chars(S, " of "),
     io:nl(S),
     print_types(S, Types, Scope);
-print_type(S, {atom2, Name}, _Scope) ->
-    %% convert to poly?
-    io:put_chars(S,atom_to_list(Name));
+print_type(S, {atom_single, Name}, _Scope) ->
+    %% todo: this should be more generic
+    {string, Name2} = fix_polymorphic_variant({literal,Name}),
+    io:put_chars(S,Name2);
 print_type(S, {list,Type}, Scope) ->
     printsF_scope(fun print_type/3, S, [Type], "(", ",", " list)", Scope);
 print_type(S, {record_type2, Name}, _Scope) ->
@@ -712,12 +714,29 @@ print_type(S, {record_type2, Name}, _Scope) ->
     io:put_chars(S,atom_to_list(Name));
 print_type(S, {'|', [{named_tuple, _, _}|_] = Types}, Scope) ->
     printsF_scope(fun print_type/3, S, Types, "[", "|", "]", Scope);
-print_type(S, {'|', Types}, Scope) ->
-    printsF_scope(fun print_type/3, S, Types, "(", "|", ")", Scope);
+print_type(S, {'|', [{atom_single, _}|_] = Types}, Scope) ->
+    printsF_scope(fun print_type/3, S, Types, "[", "|", "]", Scope);
+print_type(S, {'|', [{tuple,[{atom_single,_}|_]}|_] = Types}, Scope) ->
+    %% [{tuple,[{atom_single,age},integer]},{tuple,[{atom_single,name},string]}]
+    printsF_scope(fun print_type/3, S, Types, "[", "|", "]", Scope);
+print_type(S, {'|', [Type]}, Scope) ->
+    print_type(S, Type, Scope);
+print_type(S, {'|', [_,_|_] = Types}, Scope) ->
+    %% Case when types are combined
+    %% type mail =
+    %%   Types: [{record_type2,contact},{record_type2,device}]
+    %% io:format(S, "Types: ~p", [Types]),
+    printsF_scope(fun print_type/3, S, Types, "(* or-types not supported by ocaml unless we can macro expand *)\n (", "|", ")", Scope);
 print_type(S, {'*', Types}, Scope) ->
-    printsF_scope(fun print_type/3, S, Types, "(", "*", ")", Scope);
+    printsF_scope(fun print_type/3, S, Types, "(* * *) (", "*", ")", Scope);
+print_type(S, {'tuple', [{atom_single, Name}=Head|Types]}, Scope) ->
+    {string, Poly} = fix_polymorphic_variant(Name),
+    io:put_chars(S, Poly),
+    io:put_chars(S, " of "),
+    io:nl(S),
+    print_types(S, Types, Scope);
 print_type(S, {'tuple', Types}, Scope) ->
-    printsF_scope(fun print_type/3, S, Types, "(", "*", ")", Scope);
+    printsF_scope(fun print_type/3, S, Types, "(* tuple *) (", "*", ")", Scope);
 print_type(S, {'->', L, R}, Scope) ->
     printsF_scope(fun print_type/3, S, [L,R], "(", "->", ")", Scope);
 print_type(S, {map_typed, Types}, Scope) ->
@@ -860,7 +879,7 @@ generate_type({var, _Row, Atom}, Constraints) ->
     expand_subtype(Atom, Constraints);
 generate_type({atom, _Row, Atom}, _Constraints) ->
     %% age in -spec get1('age' | 'name', #contact{}) -> {'age', integer()} | {'name', string()}.
-    {atom2, Atom};
+    {atom_single, Atom};
 generate_type({remote_type, _Row, _} = Remote_type, _Constraints) ->
     %% _ [{atom,72,erl_types},{atom,72,erl_type},[]]
     {comment, Remote_type};

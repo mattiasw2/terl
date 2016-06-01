@@ -14,3 +14,5 @@ In order to do that, I need to restrict Erlang, for example the bang operator ! 
 Instead of implementing type-checking myself, version 1 will transform Erlang to an Ocaml program, and let the ocaml compiler to the verification. Erlang atoms will be mapped to Ocaml polymorphic variants, https://realworldocaml.org/v1/en/html/variants.html#polymorphic-variants
 
 The initial goal is not to generate runnable Ocaml code, just enough to do the type-checking.
+
+The ocaml type-checker is complex: http://okmij.org/ftp/ML/generalization.html
